@@ -1,8 +1,22 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/m-mizutani/goerr/v2"
+)
+
+var (
+	ErrInvalidConclusion = goerr.New("invalid conclusion")
+)
 
 type AlertID string
+
+// NewAlertID generates a new unique AlertID
+func NewAlertID() AlertID {
+	return AlertID(uuid.New().String())
+}
 
 type AttributeType string
 
@@ -15,6 +29,24 @@ const (
 	AttributeTypeURL       AttributeType = "url"
 )
 
+type Conclusion string
+
+const (
+	ConclusionUnaffected    Conclusion = "unaffected"
+	ConclusionFalsePositive Conclusion = "false_positive"
+	ConclusionTruePositive  Conclusion = "true_positive"
+)
+
+// Validate checks if the conclusion is valid
+func (c Conclusion) Validate() error {
+	switch c {
+	case ConclusionUnaffected, ConclusionFalsePositive, ConclusionTruePositive:
+		return nil
+	default:
+		return ErrInvalidConclusion
+	}
+}
+
 type Alert struct {
 	ID          AlertID
 	Title       string
@@ -24,7 +56,7 @@ type Alert struct {
 
 	CreatedAt  time.Time
 	ResolvedAt *time.Time
-	Conclusion string
+	Conclusion Conclusion
 	Note       string
 	MergedTo   AlertID
 }

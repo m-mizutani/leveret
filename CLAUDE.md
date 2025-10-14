@@ -16,6 +16,22 @@ Leveret is a CLI-based LLM agent for security alert analysis. It receives securi
 
 ## Restriction & Rules
 
+### Export Policy
+
+**IMPORTANT**: Keep symbols (types, functions, variables) private (lowercase) by default throughout the entire project. Only export (capitalize) when absolutely necessary for external package usage.
+
+**Guidelines:**
+- Within a package (e.g., `pkg/cli/`), prefer private types and functions
+- Only export symbols that are genuinely needed by other packages
+- Config structs, helper functions, and internal utilities should be private
+- Review each export: "Does another package really need this?"
+
+**Examples:**
+- ✅ `type config struct` in `pkg/cli/config.go` (only used within pkg/cli)
+- ✅ `func globalFlags(cfg *config)` in `pkg/cli/config.go` (only used within pkg/cli)
+- ❌ `type Config struct` when only used internally
+- ❌ `func GlobalFlags()` when only called within the same package
+
 ### 3rd party packages
 - **CLI Framework**: `github.com/urfave/cli/v3` - ALL CLI and environment variable handling
 - **Logging**: `slog` with `github.com/m-mizutani/clog` for console output
@@ -134,6 +150,25 @@ leveret chat <alert-id>
 leveret list       # Exclude merged alerts
 leveret list -a    # Include merged alerts
 ```
+
+### `show` - Show alert details
+
+```bash
+leveret show <alert-id>
+```
+
+Displays detailed information of a specific alert including title, description, attributes, timestamps, and metadata.
+
+### `search` - Search for similar alerts
+
+```bash
+leveret search -q "suspicious login from unknown IP"
+leveret search --query "AWS S3 bucket access denied" --limit 10
+```
+
+1. Generate embedding vector from query text via Gemini API
+2. Perform vector search in Firestore
+3. Return similar alerts ordered by similarity
 
 ### `resolve` - Mark alert as resolved
 

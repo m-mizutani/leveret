@@ -16,9 +16,9 @@ type config struct {
 	database string
 
 	// Adapters
-	anthropicAPIKey string
-	geminiProject   string
-	geminiLocation  string
+	claudeAPIKey   string
+	geminiProject  string
+	geminiLocation string
 }
 
 // globalFlags returns common flags used across commands with destination config
@@ -46,10 +46,10 @@ func globalFlags(cfg *config) []cli.Flag {
 func llmFlags(cfg *config) []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{
-			Name:        "anthropic-api-key",
-			Usage:       "Anthropic API key",
-			Sources:     cli.EnvVars("ANTHROPIC_API_KEY"),
-			Destination: &cfg.anthropicAPIKey,
+			Name:        "claude-api-key",
+			Usage:       "Claude API key",
+			Sources:     cli.EnvVars("CLAUDE_API_KEY"),
+			Destination: &cfg.claudeAPIKey,
 		},
 		&cli.StringFlag{
 			Name:        "gemini-project",
@@ -85,10 +85,10 @@ func (cfg *config) newRepository() (repository.Repository, error) {
 
 // newClaude creates a new Claude adapter instance
 func (cfg *config) newClaude() (adapter.Claude, error) {
-	if cfg.anthropicAPIKey == "" {
-		return nil, goerr.New("anthropic-api-key is required")
+	if cfg.claudeAPIKey == "" {
+		return nil, goerr.New("claude-api-key is required")
 	}
-	return adapter.NewClaude(cfg.anthropicAPIKey), nil
+	return adapter.NewClaude(cfg.claudeAPIKey), nil
 }
 
 // newGemini creates a new Gemini adapter instance

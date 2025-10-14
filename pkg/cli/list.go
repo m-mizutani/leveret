@@ -22,18 +22,21 @@ func listCommand() *cli.Command {
 			Name:        "all",
 			Aliases:     []string{"a"},
 			Usage:       "Include merged alerts",
+			Sources:     cli.EnvVars("LEVERET_LIST_ALL"),
 			Destination: &all,
 		},
 		&cli.IntFlag{
 			Name:        "offset",
 			Usage:       "Offset for pagination",
 			Value:       0,
+			Sources:     cli.EnvVars("LEVERET_LIST_OFFSET"),
 			Destination: &offset,
 		},
 		&cli.IntFlag{
 			Name:        "limit",
 			Usage:       "Maximum number of alerts to list",
 			Value:       100,
+			Sources:     cli.EnvVars("LEVERET_LIST_LIMIT"),
 			Destination: &limit,
 		},
 	}

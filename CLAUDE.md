@@ -196,7 +196,7 @@ go run ./cmd/leveret --help
 go run ./cmd/leveret new -i testdata/alert.json
 
 # Run with environment variables
-ANTHROPIC_API_KEY=sk-ant-... GOOGLE_CLOUD_PROJECT=your-project go run ./cmd/leveret new -i alert.json
+CLAUDE_API_KEY=sk-ant-... GOOGLE_CLOUD_PROJECT=your-project go run ./cmd/leveret new -i alert.json
 ```
 
 ### Testing
@@ -233,7 +233,7 @@ golangci-lint run
 
 ## External Dependencies
 
-- **Claude API (Anthropic)**: Main LLM for analysis and tool orchestration (Claude 3.5 Sonnet)
+- **Claude API**: Main LLM for analysis and tool orchestration (Claude 3.5 Sonnet)
 - **Gemini API (Google Vertex AI)**: Embedding generation (`text-embedding-004`)
 - **Firestore**: Alert storage and vector search
 - **Cloud Storage**: Conversation history persistence
@@ -242,7 +242,7 @@ golangci-lint run
 ## Environment Setup
 
 Required environment variables:
-- `ANTHROPIC_API_KEY`: Claude API key
+- `CLAUDE_API_KEY`: Claude API key
 - `GOOGLE_CLOUD_PROJECT`: GCP project ID
 - ADC (Application Default Credentials) for GCP services: `gcloud auth application-default login`
 

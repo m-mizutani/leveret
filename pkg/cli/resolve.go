@@ -21,14 +21,16 @@ func resolveCommand() *cli.Command {
 		&cli.StringFlag{
 			Name:        "conclusion",
 			Aliases:     []string{"c"},
-			Usage:       "Conclusion (unaffected, false_positive, true_positive)",
+			Usage:       "Conclusion (unaffected, false_positive, true_positive, inconclusive)",
 			Value:       string(model.ConclusionUnaffected),
+			Sources:     cli.EnvVars("LEVERET_RESOLVE_CONCLUSION"),
 			Destination: &conclusion,
 		},
 		&cli.StringFlag{
 			Name:        "note",
 			Aliases:     []string{"n"},
 			Usage:       "Additional note",
+			Sources:     cli.EnvVars("LEVERET_RESOLVE_NOTE"),
 			Destination: &note,
 		},
 	}

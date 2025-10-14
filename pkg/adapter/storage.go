@@ -3,7 +3,6 @@ package adapter
 import (
 	"context"
 	"io"
-	"path/filepath"
 
 	"cloud.google.com/go/storage"
 	"github.com/m-mizutani/goerr/v2"
@@ -74,8 +73,5 @@ func (s *storageClient) Get(ctx context.Context, key string) (io.ReadCloser, err
 }
 
 func (s *storageClient) buildObjectKey(key string) string {
-	if s.prefix == "" {
-		return key
-	}
-	return filepath.Join(s.prefix, key)
+	return s.prefix + key
 }

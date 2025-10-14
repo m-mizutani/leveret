@@ -19,6 +19,9 @@ type config struct {
 	claudeAPIKey   string
 	geminiProject  string
 	geminiLocation string
+
+	// Storage
+	bucketName string
 }
 
 // globalFlags returns common flags used across commands with destination config
@@ -38,6 +41,13 @@ func globalFlags(cfg *config) []cli.Flag {
 			Value:       "(default)",
 			Sources:     cli.EnvVars("FIRESTORE_DATABASE_ID"),
 			Destination: &cfg.database,
+		},
+		&cli.StringFlag{
+			Name:        "bucket",
+			Aliases:     []string{"b"},
+			Usage:       "Cloud Storage bucket name",
+			Sources:     cli.EnvVars("STORAGE_BUCKET_NAME"),
+			Destination: &cfg.bucketName,
 		},
 	}
 }
@@ -103,12 +113,12 @@ func (cfg *config) newGemini() (adapter.Gemini, error) {
 }
 
 // newStorage creates a new Storage adapter instance
-func (cfg *config) newStorage(ctx context.Context, bucketName string) (adapter.Storage, error) {
-	if bucketName == "" {
+func (cfg *config) newStorage(ctx context.Context) (adapter.Storage, error) {
+	if cfg.bucketName == "" {
 		return nil, goerr.New("bucket name is required")
 	}
 
-	storage, err := adapter.NewStorage(ctx, bucketName)
+	storage, err := adapter.NewStorage(ctx, cfg.bucketName)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to create storage")
 	}

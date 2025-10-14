@@ -11,19 +11,38 @@ import (
 )
 
 func mergeCommand() *cli.Command {
-	var cfg config
+	var (
+		cfg      config
+		sourceID string
+		targetID string
+	)
+
+	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:        "source-id",
+			Aliases:     []string{"s"},
+			Usage:       "Source alert ID to merge from",
+			Sources:     cli.EnvVars("LEVERET_MERGE_SOURCE_ID"),
+			Destination: &sourceID,
+			Required:    true,
+		},
+		&cli.StringFlag{
+			Name:        "target-id",
+			Aliases:     []string{"t"},
+			Usage:       "Target alert ID to merge into",
+			Sources:     cli.EnvVars("LEVERET_MERGE_TARGET_ID"),
+			Destination: &targetID,
+			Required:    true,
+		},
+	}
+	flags = append(flags, globalFlags(&cfg)...)
+	flags = append(flags, llmFlags(&cfg)...)
 
 	return &cli.Command{
-		Name:      "merge",
-		Usage:     "Merge an alert into another",
-		ArgsUsage: "<source-id> <target-id>",
-		Flags:     append(globalFlags(&cfg), llmFlags(&cfg)...),
+		Name:  "merge",
+		Usage: "Merge an alert into another",
+		Flags: flags,
 		Action: func(ctx context.Context, c *cli.Command) error {
-			if c.Args().Len() < 2 {
-				return goerr.New("source-id and target-id are required")
-			}
-			sourceID := model.AlertID(c.Args().Get(0))
-			targetID := model.AlertID(c.Args().Get(1))
 
 			// Initialize dependencies
 			repo, err := cfg.newRepository()
@@ -45,7 +64,7 @@ func mergeCommand() *cli.Command {
 			uc := alert.New(repo, claude, gemini)
 
 			// Merge alerts
-			if err := uc.Merge(ctx, sourceID, targetID); err != nil {
+			if err := uc.Merge(ctx, model.AlertID(sourceID), model.AlertID(targetID)); err != nil {
 				return goerr.Wrap(err, "failed to merge alerts")
 			}
 
@@ -56,18 +75,29 @@ func mergeCommand() *cli.Command {
 }
 
 func unmergeCommand() *cli.Command {
-	var cfg config
+	var (
+		cfg     config
+		alertID string
+	)
+
+	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:        "alert-id",
+			Aliases:     []string{"id"},
+			Usage:       "Alert ID to unmerge",
+			Sources:     cli.EnvVars("LEVERET_ALERT_ID"),
+			Destination: &alertID,
+			Required:    true,
+		},
+	}
+	flags = append(flags, globalFlags(&cfg)...)
+	flags = append(flags, llmFlags(&cfg)...)
 
 	return &cli.Command{
-		Name:      "unmerge",
-		Usage:     "Unmerge a merged alert",
-		ArgsUsage: "<alert-id>",
-		Flags:     append(globalFlags(&cfg), llmFlags(&cfg)...),
+		Name:  "unmerge",
+		Usage: "Unmerge a merged alert",
+		Flags: flags,
 		Action: func(ctx context.Context, c *cli.Command) error {
-			if c.Args().Len() == 0 {
-				return goerr.New("alert-id is required")
-			}
-			alertID := model.AlertID(c.Args().Get(0))
 
 			// Initialize dependencies
 			repo, err := cfg.newRepository()
@@ -89,7 +119,7 @@ func unmergeCommand() *cli.Command {
 			uc := alert.New(repo, claude, gemini)
 
 			// Unmerge alert
-			if err := uc.Unmerge(ctx, alertID); err != nil {
+			if err := uc.Unmerge(ctx, model.AlertID(alertID)); err != nil {
 				return goerr.Wrap(err, "failed to unmerge alert")
 			}
 

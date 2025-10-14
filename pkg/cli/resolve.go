@@ -13,11 +13,20 @@ import (
 func resolveCommand() *cli.Command {
 	var (
 		cfg        config
+		alertID    string
 		conclusion string
 		note       string
 	)
 
 	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:        "alert-id",
+			Aliases:     []string{"id"},
+			Usage:       "Alert ID to resolve",
+			Sources:     cli.EnvVars("LEVERET_ALERT_ID"),
+			Destination: &alertID,
+			Required:    true,
+		},
 		&cli.StringFlag{
 			Name:        "conclusion",
 			Aliases:     []string{"c"},
@@ -38,15 +47,10 @@ func resolveCommand() *cli.Command {
 	flags = append(flags, llmFlags(&cfg)...)
 
 	return &cli.Command{
-		Name:      "resolve",
-		Usage:     "Mark an alert as resolved",
-		ArgsUsage: "<alert-id>",
-		Flags:     flags,
+		Name:  "resolve",
+		Usage: "Mark an alert as resolved",
+		Flags: flags,
 		Action: func(ctx context.Context, c *cli.Command) error {
-			if c.Args().Len() == 0 {
-				return goerr.New("alert-id is required")
-			}
-			alertID := model.AlertID(c.Args().Get(0))
 
 			// Initialize dependencies
 			repo, err := cfg.newRepository()
@@ -68,7 +72,7 @@ func resolveCommand() *cli.Command {
 			uc := alert.New(repo, claude, gemini)
 
 			// Resolve alert
-			if err := uc.Resolve(ctx, alertID, model.Conclusion(conclusion), note); err != nil {
+			if err := uc.Resolve(ctx, model.AlertID(alertID), model.Conclusion(conclusion), note); err != nil {
 				return goerr.Wrap(err, "failed to resolve alert")
 			}
 

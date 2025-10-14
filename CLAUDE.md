@@ -32,6 +32,65 @@ Leveret is a CLI-based LLM agent for security alert analysis. It receives securi
 - ❌ `type Config struct` when only used internally
 - ❌ `func GlobalFlags()` when only called within the same package
 
+### CLI Implementation Rules
+
+**CRITICAL**: When implementing CLI commands in `pkg/cli/`, strictly follow these patterns:
+
+1. **Environment Variable Support**: ALL CLI options MUST support environment variables using `cli/v3`'s `Sources` feature:
+   ```go
+   &cli.StringFlag{
+       Name:        "alert-id",
+       Sources:     cli.EnvVars("LEVERET_ALERT_ID"),
+       Destination: &alertID,
+   }
+   ```
+
+2. **Destination Pattern**: ALWAYS use the `Destination` field to store flag values. NEVER use `c.String()`, `c.Bool()`, `c.Int()` etc. to retrieve values:
+   ```go
+   // ✅ CORRECT
+   var alertID string
+   &cli.StringFlag{
+       Name:        "alert-id",
+       Destination: &alertID,
+   }
+   // Then use alertID directly in Action
+
+   // ❌ WRONG
+   alertID := c.String("alert-id")  // NEVER do this
+   ```
+
+3. **Args Prohibition**: NEVER use `c.Args()` to get command arguments. All parameters MUST be passed via flags with environment variable support:
+   ```go
+   // ❌ WRONG
+   func myCommand() *cli.Command {
+       return &cli.Command{
+           ArgsUsage: "<alert-id>",
+           Action: func(ctx context.Context, c *cli.Command) error {
+               alertID := c.Args().Get(0)  // NEVER do this
+           },
+       }
+   }
+
+   // ✅ CORRECT
+   func myCommand() *cli.Command {
+       var alertID string
+       flags := []cli.Flag{
+           &cli.StringFlag{
+               Name:        "alert-id",
+               Sources:     cli.EnvVars("LEVERET_ALERT_ID"),
+               Destination: &alertID,
+               Required:    true,
+           },
+       }
+       return &cli.Command{
+           Flags: flags,
+           Action: func(ctx context.Context, c *cli.Command) error {
+               // Use alertID directly
+           },
+       }
+   }
+   ```
+
 ### 3rd party packages
 - **CLI Framework**: `github.com/urfave/cli/v3` - ALL CLI and environment variable handling
 - **Logging**: `slog` with `github.com/m-mizutani/clog` for console output
@@ -154,7 +213,9 @@ leveret list -a    # Include merged alerts
 ### `show` - Show alert details
 
 ```bash
-leveret show <alert-id>
+leveret show --alert-id <alert-id>
+# Or using environment variable
+LEVERET_ALERT_ID=abc123 leveret show
 ```
 
 Displays detailed information of a specific alert including title, description, attributes, timestamps, and metadata.
@@ -173,14 +234,23 @@ leveret search --query "AWS S3 bucket access denied" --limit 10
 ### `resolve` - Mark alert as resolved
 
 ```bash
-leveret resolve <alert-id> -c "False positive"
+leveret resolve --alert-id <alert-id> --conclusion false_positive --note "Verified safe"
+# Or using environment variables
+LEVERET_ALERT_ID=abc123 LEVERET_RESOLVE_CONCLUSION=false_positive leveret resolve
 ```
+
+Available conclusions: `unaffected`, `false_positive`, `true_positive`, `inconclusive`
 
 ### `merge`/`unmerge` - Consolidate similar alerts
 
 ```bash
-leveret merge <source-id> <target-id>
-leveret unmerge <alert-id>
+leveret merge --source-id <source-id> --target-id <target-id>
+# Or using environment variables
+LEVERET_MERGE_SOURCE_ID=abc123 LEVERET_MERGE_TARGET_ID=def456 leveret merge
+
+leveret unmerge --alert-id <alert-id>
+# Or using environment variable
+LEVERET_ALERT_ID=abc123 leveret unmerge
 ```
 
 ## Development Commands

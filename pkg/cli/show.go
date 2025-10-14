@@ -12,18 +12,29 @@ import (
 )
 
 func showCommand() *cli.Command {
-	var cfg config
+	var (
+		cfg     config
+		alertID string
+	)
+
+	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:        "alert-id",
+			Aliases:     []string{"id"},
+			Usage:       "Alert ID to show",
+			Sources:     cli.EnvVars("LEVERET_ALERT_ID"),
+			Destination: &alertID,
+			Required:    true,
+		},
+	}
+	flags = append(flags, globalFlags(&cfg)...)
+	flags = append(flags, llmFlags(&cfg)...)
 
 	return &cli.Command{
-		Name:      "show",
-		Usage:     "Show detailed information of a specific alert",
-		ArgsUsage: "<alert-id>",
-		Flags:     append(globalFlags(&cfg), llmFlags(&cfg)...),
+		Name:  "show",
+		Usage: "Show detailed information of a specific alert",
+		Flags: flags,
 		Action: func(ctx context.Context, c *cli.Command) error {
-			if c.Args().Len() == 0 {
-				return goerr.New("alert-id is required")
-			}
-			alertID := model.AlertID(c.Args().Get(0))
 
 			// Initialize dependencies
 			repo, err := cfg.newRepository()
@@ -45,7 +56,7 @@ func showCommand() *cli.Command {
 			uc := alert.New(repo, claude, gemini)
 
 			// Show alert
-			a, err := uc.Show(ctx, alertID)
+			a, err := uc.Show(ctx, model.AlertID(alertID))
 			if err != nil {
 				return goerr.Wrap(err, "failed to show alert")
 			}

@@ -12,8 +12,8 @@ import (
 // config holds configuration values
 type config struct {
 	// Repository
-	project  string
-	database string
+	firestoreProject string
+	database         string
 
 	// Adapters
 	claudeAPIKey   string
@@ -21,33 +21,40 @@ type config struct {
 	geminiLocation string
 
 	// Storage
-	bucketName string
+	bucketName    string
+	storagePrefix string
 }
 
 // globalFlags returns common flags used across commands with destination config
 func globalFlags(cfg *config) []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{
-			Name:        "project",
+			Name:        "firestore-project",
 			Aliases:     []string{"p"},
-			Usage:       "Google Cloud project ID",
-			Sources:     cli.EnvVars("GOOGLE_CLOUD_PROJECT"),
-			Destination: &cfg.project,
+			Usage:       "Google Cloud project ID for Firestore",
+			Sources:     cli.EnvVars("LEVERET_FIRESTORE_PROJECT"),
+			Destination: &cfg.firestoreProject,
 		},
 		&cli.StringFlag{
-			Name:        "database",
+			Name:        "firestore-database",
 			Aliases:     []string{"d"},
 			Usage:       "Firestore database ID",
 			Value:       "(default)",
-			Sources:     cli.EnvVars("FIRESTORE_DATABASE_ID"),
+			Sources:     cli.EnvVars("LEVERET_FIRESTORE_DATABASE_ID"),
 			Destination: &cfg.database,
 		},
 		&cli.StringFlag{
-			Name:        "bucket",
+			Name:        "storage-bucket",
 			Aliases:     []string{"b"},
 			Usage:       "Cloud Storage bucket name",
-			Sources:     cli.EnvVars("STORAGE_BUCKET_NAME"),
+			Sources:     cli.EnvVars("LEVERET_STORAGE_BUCKET"),
 			Destination: &cfg.bucketName,
+		},
+		&cli.StringFlag{
+			Name:        "storage-prefix",
+			Usage:       "Cloud Storage object key prefix",
+			Sources:     cli.EnvVars("LEVERET_STORAGE_PREFIX"),
+			Destination: &cfg.storagePrefix,
 		},
 	}
 }
@@ -58,20 +65,20 @@ func llmFlags(cfg *config) []cli.Flag {
 		&cli.StringFlag{
 			Name:        "claude-api-key",
 			Usage:       "Claude API key",
-			Sources:     cli.EnvVars("CLAUDE_API_KEY"),
+			Sources:     cli.EnvVars("LEVERET_CLAUDE_API_KEY"),
 			Destination: &cfg.claudeAPIKey,
 		},
 		&cli.StringFlag{
 			Name:        "gemini-project",
-			Usage:       "Google Cloud project ID for Gemini",
-			Sources:     cli.EnvVars("GEMINI_PROJECT_ID"),
+			Usage:       "Google Cloud project ID for Gemini API",
+			Sources:     cli.EnvVars("LEVERET_GEMINI_PROJECT"),
 			Destination: &cfg.geminiProject,
 		},
 		&cli.StringFlag{
 			Name:        "gemini-location",
 			Usage:       "Google Cloud location for Gemini",
 			Value:       "us-central1",
-			Sources:     cli.EnvVars("GEMINI_LOCATION"),
+			Sources:     cli.EnvVars("LEVERET_GEMINI_LOCATION"),
 			Destination: &cfg.geminiLocation,
 		},
 	}
@@ -79,14 +86,14 @@ func llmFlags(cfg *config) []cli.Flag {
 
 // newRepository creates a new repository instance
 func (cfg *config) newRepository() (repository.Repository, error) {
-	if cfg.project == "" {
-		return nil, goerr.New("project is required")
+	if cfg.firestoreProject == "" {
+		return nil, goerr.New("firestore-project is required")
 	}
 	if cfg.database == "" {
 		return nil, goerr.New("database is required")
 	}
 
-	repo, err := repository.New(cfg.project, cfg.database)
+	repo, err := repository.New(cfg.firestoreProject, cfg.database)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to create repository")
 	}
@@ -118,7 +125,12 @@ func (cfg *config) newStorage(ctx context.Context) (adapter.Storage, error) {
 		return nil, goerr.New("bucket name is required")
 	}
 
-	storage, err := adapter.NewStorage(ctx, cfg.bucketName)
+	var opts []adapter.StorageOption
+	if cfg.storagePrefix != "" {
+		opts = append(opts, adapter.WithPrefix(cfg.storagePrefix))
+	}
+
+	storage, err := adapter.NewStorage(ctx, cfg.bucketName, opts...)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to create storage")
 	}

@@ -60,12 +60,30 @@ func searchCommand() *cli.Command {
 			// Create alert usecase
 			uc := alert.New(repo, claude, gemini, alert.WithOutput(c.Root().Writer))
 
-			// TODO: Implement Search method
-			_ = uc
-			_ = query
-			_ = limit
+			// Search for similar alerts
+			alerts, err := uc.Search(ctx, alert.SearchOptions{
+				Query: query,
+				Limit: int(limit),
+			})
+			if err != nil {
+				return err
+			}
 
-			fmt.Fprintf(c.Root().Writer, "Search completed\n")
+			// Display results
+			if len(alerts) == 0 {
+				fmt.Fprintf(c.Root().Writer, "No similar alerts found\n")
+				return nil
+			}
+
+			fmt.Fprintf(c.Root().Writer, "Found %d similar alerts:\n\n", len(alerts))
+			for i, a := range alerts {
+				fmt.Fprintf(c.Root().Writer, "%d. %s (%s)\n", i+1, a.ID, a.Title)
+				if a.Description != "" {
+					fmt.Fprintf(c.Root().Writer, "   %s\n", a.Description)
+				}
+				fmt.Fprintf(c.Root().Writer, "\n")
+			}
+
 			return nil
 		},
 	}

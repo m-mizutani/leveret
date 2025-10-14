@@ -14,7 +14,7 @@ import (
 func showCommand() *cli.Command {
 	var (
 		cfg     config
-		alertID string
+		alertID model.AlertID
 	)
 
 	flags := []cli.Flag{
@@ -23,7 +23,7 @@ func showCommand() *cli.Command {
 			Aliases:     []string{"id"},
 			Usage:       "Alert ID to show",
 			Sources:     cli.EnvVars("LEVERET_ALERT_ID"),
-			Destination: &alertID,
+			Destination: (*string)(&alertID),
 			Required:    true,
 		},
 	}
@@ -56,7 +56,7 @@ func showCommand() *cli.Command {
 			uc := alert.New(repo, claude, gemini)
 
 			// Show alert
-			a, err := uc.Show(ctx, model.AlertID(alertID))
+			a, err := uc.Show(ctx, alertID)
 			if err != nil {
 				return goerr.Wrap(err, "failed to show alert")
 			}

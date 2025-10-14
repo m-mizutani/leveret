@@ -1,17 +1,21 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
 
+	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/model"
+	"github.com/m-mizutani/leveret/pkg/usecase/chat"
 	"github.com/urfave/cli/v3"
 )
 
 func chatCommand() *cli.Command {
 	var (
 		cfg     config
-		alertID string
+		alertID model.AlertID
 	)
 
 	flags := []cli.Flag{
@@ -20,7 +24,7 @@ func chatCommand() *cli.Command {
 			Aliases:     []string{"id"},
 			Usage:       "Alert ID to chat with",
 			Sources:     cli.EnvVars("LEVERET_ALERT_ID"),
-			Destination: &alertID,
+			Destination: (*string)(&alertID),
 			Required:    true,
 		},
 	}
@@ -53,14 +57,57 @@ func chatCommand() *cli.Command {
 				return err
 			}
 
-			// TODO: Implement chat.Start
-			_ = repo
-			_ = claude
-			_ = gemini
-			_ = storage
-			_ = model.AlertID(alertID)
+			// Create chat session
+			session, err := chat.New(ctx, chat.NewInput{
+				Repo:    repo,
+				Claude:  claude,
+				Storage: storage,
+				AlertID: alertID,
+			})
+			if err != nil {
+				return goerr.Wrap(err, "failed to create chat session")
+			}
 
-			fmt.Fprintf(c.Root().Writer, "Chat session completed\n")
+			// Interactive chat loop
+			scanner := bufio.NewScanner(os.Stdin)
+			fmt.Fprintf(c.Root().Writer, "Chat session started. Type 'exit' to quit.\n")
+
+			for {
+				fmt.Fprintf(c.Root().Writer, "> ")
+				if !scanner.Scan() {
+					break
+				}
+
+				message := scanner.Text()
+				if message == "exit" {
+					break
+				}
+
+				if message == "" {
+					continue
+				}
+
+				// Send message to Claude
+				response, err := session.Send(ctx, message)
+				if err != nil {
+					return goerr.Wrap(err, "failed to send message")
+				}
+
+				// Display response
+				if response != nil {
+					for _, content := range response.Content {
+						if content.Type == "text" {
+							text := content.AsText()
+							fmt.Fprintf(c.Root().Writer, "%s\n", text.Text)
+						}
+					}
+				}
+			}
+
+			// Suppress unused variable warning
+			_ = gemini
+
+			fmt.Fprintf(c.Root().Writer, "\nChat session completed\n")
 			return nil
 		},
 	}

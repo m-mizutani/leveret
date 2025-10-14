@@ -36,14 +36,18 @@ Leveret is a CLI-based LLM agent for security alert analysis. It receives securi
 
 **CRITICAL**: When implementing CLI commands in `pkg/cli/`, strictly follow these patterns:
 
-1. **Environment Variable Support**: ALL CLI options MUST support environment variables using `cli/v3`'s `Sources` feature:
+1. **Environment Variable Support**: ALL CLI options MUST support environment variables using `cli/v3`'s `Sources` feature with `LEVERET_` prefix:
    ```go
    &cli.StringFlag{
        Name:        "alert-id",
-       Sources:     cli.EnvVars("LEVERET_ALERT_ID"),
+       Sources:     cli.EnvVars("LEVERET_ALERT_ID"),  // Always use LEVERET_ prefix
        Destination: &alertID,
    }
    ```
+
+   **Naming Convention**: All environment variables must use the `LEVERET_` prefix for consistency:
+   - ✅ `LEVERET_PROJECT`, `LEVERET_CLAUDE_API_KEY`, `LEVERET_ALERT_ID`
+   - ❌ `GOOGLE_CLOUD_PROJECT`, `CLAUDE_API_KEY`, `ALERT_ID`
 
 2. **Destination Pattern**: ALWAYS use the `Destination` field to store flag values. NEVER use `c.String()`, `c.Bool()`, `c.Int()` etc. to retrieve values:
    ```go
@@ -266,7 +270,7 @@ go run ./cmd/leveret --help
 go run ./cmd/leveret new -i testdata/alert.json
 
 # Run with environment variables
-CLAUDE_API_KEY=sk-ant-... GOOGLE_CLOUD_PROJECT=your-project go run ./cmd/leveret new -i alert.json
+LEVERET_CLAUDE_API_KEY=sk-ant-... LEVERET_FIRESTORE_PROJECT=your-project LEVERET_GEMINI_PROJECT=your-project go run ./cmd/leveret new -i alert.json
 ```
 
 ### Testing
@@ -311,9 +315,45 @@ golangci-lint run
 
 ## Environment Setup
 
-Required environment variables:
-- `CLAUDE_API_KEY`: Claude API key
-- `GOOGLE_CLOUD_PROJECT`: GCP project ID
+All environment variables use the `LEVERET_` prefix for consistency.
+
+### Global Configuration
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `LEVERET_LOG_LEVEL` | Log level (debug, info, warn, error) | "info" | No |
+| `LEVERET_VERBOSE` | Enable verbose mode (show stack traces) | false | No |
+| `LEVERET_FIRESTORE_PROJECT` | Google Cloud project ID for Firestore | - | Yes |
+| `LEVERET_FIRESTORE_DATABASE_ID` | Firestore database ID | "(default)" | No |
+| `LEVERET_STORAGE_BUCKET` | Cloud Storage bucket name | - | Yes (for chat) |
+| `LEVERET_STORAGE_PREFIX` | Cloud Storage object key prefix | - | No |
+
+### LLM Configuration
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `LEVERET_CLAUDE_API_KEY` | Claude API key | - | Yes |
+| `LEVERET_GEMINI_PROJECT` | Google Cloud project ID for Gemini | - | Yes |
+| `LEVERET_GEMINI_LOCATION` | Google Cloud location for Gemini | "us-central1" | No |
+
+### Command-Specific Variables
+
+| Variable | Command | Description |
+|----------|---------|-------------|
+| `LEVERET_INPUT` | new | Input file path |
+| `LEVERET_ALERT_ID` | show, chat, resolve, unmerge | Alert ID |
+| `LEVERET_LIST_ALL` | list | Include merged alerts |
+| `LEVERET_LIST_OFFSET` | list | Pagination offset |
+| `LEVERET_LIST_LIMIT` | list | Maximum results |
+| `LEVERET_SEARCH_QUERY` | search | Natural language query |
+| `LEVERET_SEARCH_LIMIT` | search | Maximum results |
+| `LEVERET_RESOLVE_CONCLUSION` | resolve | Conclusion type |
+| `LEVERET_RESOLVE_NOTE` | resolve | Additional note |
+| `LEVERET_MERGE_SOURCE_ID` | merge | Source alert ID |
+| `LEVERET_MERGE_TARGET_ID` | merge | Target alert ID |
+
+### Additional Setup
+
 - ADC (Application Default Credentials) for GCP services: `gcloud auth application-default login`
 
 ## Tool Call Loop Pattern

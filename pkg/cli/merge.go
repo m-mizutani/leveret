@@ -13,8 +13,8 @@ import (
 func mergeCommand() *cli.Command {
 	var (
 		cfg      config
-		sourceID string
-		targetID string
+		sourceID model.AlertID
+		targetID model.AlertID
 	)
 
 	flags := []cli.Flag{
@@ -23,7 +23,7 @@ func mergeCommand() *cli.Command {
 			Aliases:     []string{"s"},
 			Usage:       "Source alert ID to merge from",
 			Sources:     cli.EnvVars("LEVERET_MERGE_SOURCE_ID"),
-			Destination: &sourceID,
+			Destination: (*string)(&sourceID),
 			Required:    true,
 		},
 		&cli.StringFlag{
@@ -31,7 +31,7 @@ func mergeCommand() *cli.Command {
 			Aliases:     []string{"t"},
 			Usage:       "Target alert ID to merge into",
 			Sources:     cli.EnvVars("LEVERET_MERGE_TARGET_ID"),
-			Destination: &targetID,
+			Destination: (*string)(&targetID),
 			Required:    true,
 		},
 	}
@@ -64,7 +64,7 @@ func mergeCommand() *cli.Command {
 			uc := alert.New(repo, claude, gemini)
 
 			// Merge alerts
-			if err := uc.Merge(ctx, model.AlertID(sourceID), model.AlertID(targetID)); err != nil {
+			if err := uc.Merge(ctx, sourceID, targetID); err != nil {
 				return goerr.Wrap(err, "failed to merge alerts")
 			}
 
@@ -77,7 +77,7 @@ func mergeCommand() *cli.Command {
 func unmergeCommand() *cli.Command {
 	var (
 		cfg     config
-		alertID string
+		alertID model.AlertID
 	)
 
 	flags := []cli.Flag{
@@ -86,7 +86,7 @@ func unmergeCommand() *cli.Command {
 			Aliases:     []string{"id"},
 			Usage:       "Alert ID to unmerge",
 			Sources:     cli.EnvVars("LEVERET_ALERT_ID"),
-			Destination: &alertID,
+			Destination: (*string)(&alertID),
 			Required:    true,
 		},
 	}
@@ -119,7 +119,7 @@ func unmergeCommand() *cli.Command {
 			uc := alert.New(repo, claude, gemini)
 
 			// Unmerge alert
-			if err := uc.Unmerge(ctx, model.AlertID(alertID)); err != nil {
+			if err := uc.Unmerge(ctx, alertID); err != nil {
 				return goerr.Wrap(err, "failed to unmerge alert")
 			}
 

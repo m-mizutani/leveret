@@ -13,8 +13,8 @@ import (
 func resolveCommand() *cli.Command {
 	var (
 		cfg        config
-		alertID    string
-		conclusion string
+		alertID    model.AlertID
+		conclusion model.Conclusion
 		note       string
 	)
 
@@ -24,7 +24,7 @@ func resolveCommand() *cli.Command {
 			Aliases:     []string{"id"},
 			Usage:       "Alert ID to resolve",
 			Sources:     cli.EnvVars("LEVERET_ALERT_ID"),
-			Destination: &alertID,
+			Destination: (*string)(&alertID),
 			Required:    true,
 		},
 		&cli.StringFlag{
@@ -33,7 +33,7 @@ func resolveCommand() *cli.Command {
 			Usage:       "Conclusion (unaffected, false_positive, true_positive, inconclusive)",
 			Value:       string(model.ConclusionUnaffected),
 			Sources:     cli.EnvVars("LEVERET_RESOLVE_CONCLUSION"),
-			Destination: &conclusion,
+			Destination: (*string)(&conclusion),
 		},
 		&cli.StringFlag{
 			Name:        "note",
@@ -72,7 +72,7 @@ func resolveCommand() *cli.Command {
 			uc := alert.New(repo, claude, gemini)
 
 			// Resolve alert
-			if err := uc.Resolve(ctx, model.AlertID(alertID), model.Conclusion(conclusion), note); err != nil {
+			if err := uc.Resolve(ctx, alertID, conclusion, note); err != nil {
 				return goerr.Wrap(err, "failed to resolve alert")
 			}
 

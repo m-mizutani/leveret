@@ -10,7 +10,7 @@ import (
 // Insert registers a new alert
 // 1. Parse JSON alert data
 // 2. Run policy evaluation (accept/reject)
-// 3. Generate summary and extract IOCs via Claude API
+// 3. Generate summary and extract IOCs via Gemini API
 // 4. Generate embedding vector via Gemini API
 // 5. Save to Firestore with generated alert ID
 func (u *UseCase) Insert(
@@ -25,7 +25,7 @@ func (u *UseCase) Insert(
 
 	// TODO: Run policy evaluation (accept/reject)
 
-	// TODO: Generate summary and extract IOCs via Claude API
+	// TODO: Generate summary and extract IOCs via Gemini API
 	// This should populate:
 	// - alert.Title
 	// - alert.Description

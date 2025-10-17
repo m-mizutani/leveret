@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Leveret is a CLI-based LLM agent for security alert analysis. It receives security alerts in JSON format (e.g., from Amazon GuardDuty), analyzes them using Claude AI and Gemini, and provides interactive analysis capabilities with external tool integration.
+Leveret is a CLI-based LLM agent for security alert analysis. It receives security alerts in JSON format (e.g., from Amazon GuardDuty), analyzes them using Gemini, and provides interactive analysis capabilities with external tool integration.
 
 **Key Features:**
 - Accept and parse security alerts from various sources
-- Generate summaries and extract IOCs (Indicators of Compromise) using Claude AI
+- Generate summaries and extract IOCs (Indicators of Compromise) using Gemini
 - Create embeddings with Gemini API for similarity search
 - Interactive chat-based analysis with Tool Call loop
 - Policy-based filtering using OPA/Rego
@@ -112,8 +112,7 @@ pkg/
 ├── usecase/                 # UseCase layer: business logic orchestration
 ├── repository/              # Repository layer: data persistence (Firestore)
 ├── adapter/                 # Adapter layer: external service integration
-│   ├── claude.go           # Claude API client
-│   ├── gemini.go           # Gemini API client (embeddings)
+│   ├── gemini.go           # Gemini API client (LLM chat & embeddings)
 │   └── storage.go          # Cloud Storage client (conversation history)
 └── model/                   # Model layer: shared data structures
 ```
@@ -123,9 +122,9 @@ pkg/
 ### Layer Responsibilities
 
 - **CLI Layer ([pkg/cli/](pkg/cli/))**: Parses command-line arguments, reads environment variables and config files, initializes repositories and adapters, performs dependency injection into use cases. ALL environment variable access must happen in this layer only.
-- **UseCase Layer ([pkg/usecase/](pkg/usecase/))**: Implements core business logic, coordinates repositories and adapters, handles the Tool Call loop with Claude. Receives all dependencies via constructor injection.
+- **UseCase Layer ([pkg/usecase/](pkg/usecase/))**: Implements core business logic, coordinates repositories and adapters, handles the Tool Call loop with Gemini. Receives all dependencies via constructor injection.
 - **Repository Layer ([pkg/repository/](pkg/repository/))**: Abstracts data persistence to Firestore, provides interface for alert CRUD operations and vector search.
-- **Adapter Layer ([pkg/adapter/](pkg/adapter/))**: Wraps external service APIs (Claude, Gemini, Cloud Storage), hides implementation details from upper layers.
+- **Adapter Layer ([pkg/adapter/](pkg/adapter/))**: Wraps external service APIs (Gemini, Cloud Storage), hides implementation details from upper layers.
 - **Model Layer ([pkg/model/](pkg/model/))**: Defines shared data structures (Alert, Attribute, etc.).
 
 ## Core Data Models
@@ -191,7 +190,7 @@ leveret new -i alert.json
 
 1. Parse JSON alert data
 2. Run policy evaluation (accept/reject)
-3. Generate summary and extract IOCs via Claude API
+3. Generate summary and extract IOCs via Gemini API
 4. Generate embedding vector via Gemini API
 5. Save to Firestore with generated alert ID
 
@@ -203,8 +202,8 @@ leveret chat <alert-id>
 
 1. Fetch alert from Firestore
 2. Load conversation history from Cloud Storage
-3. Start Tool Call loop with Claude API
-4. Execute external tools as requested by Claude
+3. Start Tool Call loop with Gemini API
+4. Execute external tools as requested by Gemini
 5. Save updated conversation history
 
 ### `list` - List alerts
@@ -270,7 +269,7 @@ go run ./cmd/leveret --help
 go run ./cmd/leveret new -i testdata/alert.json
 
 # Run with environment variables
-LEVERET_CLAUDE_API_KEY=sk-ant-... LEVERET_FIRESTORE_PROJECT=your-project LEVERET_GEMINI_PROJECT=your-project go run ./cmd/leveret new -i alert.json
+LEVERET_FIRESTORE_PROJECT=your-project LEVERET_GEMINI_PROJECT=your-project go run ./cmd/leveret new -i alert.json
 ```
 
 ### Testing
@@ -307,8 +306,7 @@ golangci-lint run
 
 ## External Dependencies
 
-- **Claude API**: Main LLM for analysis and tool orchestration (Claude 3.5 Sonnet)
-- **Gemini API (Google Vertex AI)**: Embedding generation (`text-embedding-004`)
+- **Gemini API (Google GenAI)**: Main LLM for analysis and tool orchestration, and embedding generation
 - **Firestore**: Alert storage and vector search
 - **Cloud Storage**: Conversation history persistence
 - **OPA/Rego**: Policy-based alert filtering (implementation in progress)
@@ -332,7 +330,6 @@ All environment variables use the `LEVERET_` prefix for consistency.
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `LEVERET_CLAUDE_API_KEY` | Claude API key | - | Yes |
 | `LEVERET_GEMINI_PROJECT` | Google Cloud project ID for Gemini | - | Yes |
 | `LEVERET_GEMINI_LOCATION` | Google Cloud location for Gemini | "us-central1" | No |
 
@@ -358,12 +355,12 @@ All environment variables use the `LEVERET_` prefix for consistency.
 
 ## Tool Call Loop Pattern
 
-The chat command uses Claude's Tool Use (Tool Call) pattern:
+The chat command uses Gemini's Tool Use (Function Calling) pattern:
 
-1. Send prompt + tool definitions to Claude
-2. Receive ToolCall instruction from Claude
+1. Send prompt + tool definitions to Gemini
+2. Receive function call instruction from Gemini
 3. Execute the requested tool
-4. Send ToolResult back to Claude
-5. Repeat until Claude returns final answer (no more ToolCall)
+4. Send function result back to Gemini
+5. Repeat until Gemini returns final answer (no more function calls)
 
-This enables Claude to dynamically call external APIs like threat intelligence services, log databases, etc.
+This enables Gemini to dynamically call external APIs like threat intelligence services, log databases, etc.

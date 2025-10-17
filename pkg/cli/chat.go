@@ -42,11 +42,6 @@ func chatCommand() *cli.Command {
 				return err
 			}
 
-			claude, err := cfg.newClaude()
-			if err != nil {
-				return err
-			}
-
 			gemini, err := cfg.newGemini()
 			if err != nil {
 				return err
@@ -60,7 +55,7 @@ func chatCommand() *cli.Command {
 			// Create chat session
 			session, err := chat.New(ctx, chat.NewInput{
 				Repo:    repo,
-				Claude:  claude,
+				Gemini:  gemini,
 				Storage: storage,
 				AlertID: alertID,
 			})
@@ -87,7 +82,7 @@ func chatCommand() *cli.Command {
 					continue
 				}
 
-				// Send message to Claude
+				// Send message to Gemini
 				response, err := session.Send(ctx, message)
 				if err != nil {
 					return goerr.Wrap(err, "failed to send message")
@@ -95,17 +90,17 @@ func chatCommand() *cli.Command {
 
 				// Display response
 				if response != nil {
-					for _, content := range response.Content {
-						if content.Type == "text" {
-							text := content.AsText()
-							fmt.Fprintf(c.Root().Writer, "%s\n", text.Text)
+					for _, candidate := range response.Candidates {
+						if candidate.Content != nil {
+							for _, part := range candidate.Content.Parts {
+								if text := part.Text; text != "" {
+									fmt.Fprintf(c.Root().Writer, "%s\n", text)
+								}
+							}
 						}
 					}
 				}
 			}
-
-			// Suppress unused variable warning
-			_ = gemini
 
 			fmt.Fprintf(c.Root().Writer, "\nChat session completed\n")
 			return nil

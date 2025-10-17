@@ -50,18 +50,13 @@ func mergeCommand() *cli.Command {
 				return err
 			}
 
-			claude, err := cfg.newClaude()
-			if err != nil {
-				return err
-			}
-
 			gemini, err := cfg.newGemini()
 			if err != nil {
 				return err
 			}
 
 			// Create alert usecase
-			uc := alert.New(repo, claude, gemini)
+			uc := alert.New(repo, gemini)
 
 			// Merge alerts
 			if err := uc.Merge(ctx, sourceID, targetID); err != nil {
@@ -105,18 +100,13 @@ func unmergeCommand() *cli.Command {
 				return err
 			}
 
-			claude, err := cfg.newClaude()
-			if err != nil {
-				return err
-			}
-
 			gemini, err := cfg.newGemini()
 			if err != nil {
 				return err
 			}
 
 			// Create alert usecase
-			uc := alert.New(repo, claude, gemini)
+			uc := alert.New(repo, gemini)
 
 			// Unmerge alert
 			if err := uc.Unmerge(ctx, alertID); err != nil {

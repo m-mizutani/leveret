@@ -54,18 +54,13 @@ func listCommand() *cli.Command {
 				return err
 			}
 
-			claude, err := cfg.newClaude()
-			if err != nil {
-				return err
-			}
-
 			gemini, err := cfg.newGemini()
 			if err != nil {
 				return err
 			}
 
 			// Create alert usecase
-			uc := alert.New(repo, claude, gemini)
+			uc := alert.New(repo, gemini)
 
 			// List alerts
 			alerts, err := uc.List(ctx, alert.ListOptions{

@@ -11,7 +11,6 @@ import (
 // UseCase provides alert-related operations
 type UseCase struct {
 	repo   repository.Repository
-	claude adapter.Claude
 	gemini adapter.Gemini
 	output io.Writer
 }
@@ -29,13 +28,11 @@ func WithOutput(w io.Writer) Option {
 // New creates a new alert UseCase instance
 func New(
 	repo repository.Repository,
-	claude adapter.Claude,
 	gemini adapter.Gemini,
 	opts ...Option,
 ) *UseCase {
 	uc := &UseCase{
 		repo:   repo,
-		claude: claude,
 		gemini: gemini,
 		output: os.Stdout,
 	}

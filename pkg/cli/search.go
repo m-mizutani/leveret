@@ -47,18 +47,13 @@ func searchCommand() *cli.Command {
 				return err
 			}
 
-			claude, err := cfg.newClaude()
-			if err != nil {
-				return err
-			}
-
 			gemini, err := cfg.newGemini()
 			if err != nil {
 				return err
 			}
 
 			// Create alert usecase
-			uc := alert.New(repo, claude, gemini, alert.WithOutput(c.Root().Writer))
+			uc := alert.New(repo, gemini, alert.WithOutput(c.Root().Writer))
 
 			// Search for similar alerts
 			alerts, err := uc.Search(ctx, alert.SearchOptions{

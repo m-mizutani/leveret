@@ -16,7 +16,6 @@ type config struct {
 	database         string
 
 	// Adapters
-	claudeAPIKey   string
 	geminiProject  string
 	geminiLocation string
 
@@ -63,12 +62,6 @@ func globalFlags(cfg *config) []cli.Flag {
 func llmFlags(cfg *config) []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{
-			Name:        "claude-api-key",
-			Usage:       "Claude API key",
-			Sources:     cli.EnvVars("LEVERET_CLAUDE_API_KEY"),
-			Destination: &cfg.claudeAPIKey,
-		},
-		&cli.StringFlag{
 			Name:        "gemini-project",
 			Usage:       "Google Cloud project ID for Gemini API",
 			Sources:     cli.EnvVars("LEVERET_GEMINI_PROJECT"),
@@ -98,14 +91,6 @@ func (cfg *config) newRepository() (repository.Repository, error) {
 		return nil, goerr.Wrap(err, "failed to create repository")
 	}
 	return repo, nil
-}
-
-// newClaude creates a new Claude adapter instance
-func (cfg *config) newClaude() (adapter.Claude, error) {
-	if cfg.claudeAPIKey == "" {
-		return nil, goerr.New("claude-api-key is required")
-	}
-	return adapter.NewClaude(cfg.claudeAPIKey), nil
 }
 
 // newGemini creates a new Gemini adapter instance

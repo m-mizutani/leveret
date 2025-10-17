@@ -3,16 +3,16 @@ package chat
 import (
 	"context"
 
-	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/m-mizutani/leveret/pkg/adapter"
 	"github.com/m-mizutani/leveret/pkg/model"
 	"github.com/m-mizutani/leveret/pkg/repository"
+	"google.golang.org/genai"
 )
 
 // Session manages an interactive chat session for alert analysis
 type Session struct {
 	repo    repository.Repository
-	claude  adapter.Claude
+	gemini  adapter.Gemini
 	storage adapter.Storage
 	alertID model.AlertID
 	alert   *model.Alert
@@ -22,7 +22,7 @@ type Session struct {
 // NewInput contains parameters for creating a new chat session
 type NewInput struct {
 	Repo      repository.Repository
-	Claude    adapter.Claude
+	Gemini    adapter.Gemini
 	Storage   adapter.Storage
 	AlertID   model.AlertID
 	HistoryID *model.HistoryID // Optional: specify to continue existing conversation
@@ -39,27 +39,27 @@ func New(ctx context.Context, input NewInput) (*Session, error) {
 	// - Otherwise, create new history
 	return &Session{
 		repo:    input.Repo,
-		claude:  input.Claude,
+		gemini:  input.Gemini,
 		storage: input.Storage,
 		alertID: input.AlertID,
 		history: &model.History{
-			Messages: []anthropic.MessageParam{},
+			Contents: []*genai.Content{},
 		},
 	}, nil
 }
 
-// Send sends a message to Claude and returns the response
+// Send sends a message to Gemini and returns the response
 // 1. Add user message to history
-// 2. Send messages to Claude API (Tool Call loop)
-// 3. Execute external tools as requested by Claude
+// 2. Send messages to Gemini API (Tool Call loop)
+// 3. Execute external tools as requested by Gemini
 // 4. Add assistant response to history
 // 5. Save updated conversation history to storage
-func (s *Session) Send(ctx context.Context, message string) (*anthropic.Message, error) {
+func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateContentResponse, error) {
 	// TODO: Implement Send
-	// - Add user message to history.Messages
-	// - Call Claude API with history.Messages
+	// - Add user message to history.Contents
+	// - Call Gemini API with history.Contents
 	// - Handle Tool Call loop
-	// - Add assistant response to history.Messages
+	// - Add assistant response to history.Contents
 	// - Save conversation history (model.History) to storage
 	// - Return response
 	return nil, nil

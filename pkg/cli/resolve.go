@@ -58,18 +58,13 @@ func resolveCommand() *cli.Command {
 				return err
 			}
 
-			claude, err := cfg.newClaude()
-			if err != nil {
-				return err
-			}
-
 			gemini, err := cfg.newGemini()
 			if err != nil {
 				return err
 			}
 
 			// Create alert usecase
-			uc := alert.New(repo, claude, gemini)
+			uc := alert.New(repo, gemini)
 
 			// Resolve alert
 			if err := uc.Resolve(ctx, alertID, conclusion, note); err != nil {

@@ -3,8 +3,8 @@ package model
 import (
 	"time"
 
-	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/google/uuid"
+	"google.golang.org/genai"
 )
 
 type HistoryID string
@@ -23,5 +23,5 @@ type History struct {
 	UpdatedAt time.Time
 
 	// Do not save history raw data due to size limitation of firestore
-	Messages []anthropic.MessageParam `firestore:"-"`
+	Contents []*genai.Content `firestore:"-"`
 }

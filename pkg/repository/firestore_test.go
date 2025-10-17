@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/m-mizutani/gt"
 	"github.com/m-mizutani/leveret/pkg/model"
 	"github.com/m-mizutani/leveret/pkg/repository"
+	"google.golang.org/genai"
 )
 
 func setupFirestore(t *testing.T) *repository.Firestore {
@@ -156,7 +156,7 @@ func TestFirestorePutHistory(t *testing.T) {
 		ID:        model.NewHistoryID(),
 		Title:     "Test Conversation",
 		AlertID:   alertID,
-		Messages:  []anthropic.MessageParam{},
+		Contents:  []*genai.Content{},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -175,7 +175,7 @@ func TestFirestoreGetHistory(t *testing.T) {
 		ID:        model.NewHistoryID(),
 		Title:     "Test Conversation 2",
 		AlertID:   alertID,
-		Messages:  []anthropic.MessageParam{},
+		Contents:  []*genai.Content{},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -212,7 +212,7 @@ func TestFirestoreListHistory(t *testing.T) {
 			ID:        model.NewHistoryID(),
 			Title:     "Conversation 1",
 			AlertID:   alertID,
-			Messages:  []anthropic.MessageParam{},
+			Contents:  []*genai.Content{},
 			CreatedAt: now.Add(-2 * time.Hour),
 			UpdatedAt: now.Add(-2 * time.Hour),
 		},
@@ -220,7 +220,7 @@ func TestFirestoreListHistory(t *testing.T) {
 			ID:        model.NewHistoryID(),
 			Title:     "Conversation 2",
 			AlertID:   alertID,
-			Messages:  []anthropic.MessageParam{},
+			Contents:  []*genai.Content{},
 			CreatedAt: now.Add(-1 * time.Hour),
 			UpdatedAt: now.Add(-1 * time.Hour),
 		},
@@ -228,7 +228,7 @@ func TestFirestoreListHistory(t *testing.T) {
 			ID:        model.NewHistoryID(),
 			Title:     "Conversation 3",
 			AlertID:   alertID,
-			Messages:  []anthropic.MessageParam{},
+			Contents:  []*genai.Content{},
 			CreatedAt: now,
 			UpdatedAt: now,
 		},

@@ -7,12 +7,6 @@ import (
 	"github.com/m-mizutani/leveret/pkg/model"
 )
 
-// Insert registers a new alert
-// 1. Parse JSON alert data
-// 2. Run policy evaluation (accept/reject)
-// 3. Generate summary and extract IOCs via Gemini API
-// 4. Generate embedding vector via Gemini API
-// 5. Save to Firestore with generated alert ID
 func (u *UseCase) Insert(
 	ctx context.Context,
 	data any,
@@ -23,17 +17,6 @@ func (u *UseCase) Insert(
 		CreatedAt: time.Now(),
 	}
 
-	// TODO: Run policy evaluation (accept/reject)
-
-	// TODO: Generate summary and extract IOCs via Gemini API
-	// This should populate:
-	// - alert.Title
-	// - alert.Description
-	// - alert.Attributes
-
-	// TODO: Generate embedding vector via Gemini API
-
-	// Save to Firestore
 	if err := u.repo.PutAlert(ctx, alert); err != nil {
 		return nil, err
 	}

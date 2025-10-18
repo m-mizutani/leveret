@@ -33,10 +33,11 @@ func WithEmbeddingModel(model string) GeminiOption {
 	}
 }
 
-func NewGemini(ctx context.Context, projectID string, opts ...GeminiOption) (*GeminiClient, error) {
+func NewGemini(ctx context.Context, projectID, location string, opts ...GeminiOption) (*GeminiClient, error) {
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		Project: projectID,
-		Backend: genai.BackendVertexAI,
+		Project:  projectID,
+		Location: location,
+		Backend:  genai.BackendVertexAI,
 	})
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to create genai client")

@@ -16,9 +16,10 @@ type config struct {
 	database         string
 
 	// Adapters
-	geminiProject           string
-	geminiGenerativeModel   string
-	geminiEmbeddingModel    string
+	geminiProject         string
+	geminiLocation        string
+	geminiGenerativeModel string
+	geminiEmbeddingModel  string
 
 	// Storage
 	bucketName    string
@@ -69,16 +70,23 @@ func llmFlags(cfg *config) []cli.Flag {
 			Destination: &cfg.geminiProject,
 		},
 		&cli.StringFlag{
+			Name:        "gemini-location",
+			Usage:       "Google Cloud location for Gemini API",
+			Value:       "us-central1",
+			Sources:     cli.EnvVars("LEVERET_GEMINI_LOCATION"),
+			Destination: &cfg.geminiLocation,
+		},
+		&cli.StringFlag{
 			Name:        "gemini-generative-model",
 			Usage:       "Gemini generative model name",
-			Value:       "gemini-2.0-flash-exp",
+			Value:       "gemini-2.5-flash",
 			Sources:     cli.EnvVars("LEVERET_GEMINI_GENERATIVE_MODEL"),
 			Destination: &cfg.geminiGenerativeModel,
 		},
 		&cli.StringFlag{
 			Name:        "gemini-embedding-model",
 			Usage:       "Gemini embedding model name",
-			Value:       "text-embedding-004",
+			Value:       "gemini-embedding-001",
 			Sources:     cli.EnvVars("LEVERET_GEMINI_EMBEDDING_MODEL"),
 			Destination: &cfg.geminiEmbeddingModel,
 		},
@@ -115,7 +123,7 @@ func (cfg *config) newGemini(ctx context.Context) (adapter.Gemini, error) {
 		opts = append(opts, adapter.WithEmbeddingModel(cfg.geminiEmbeddingModel))
 	}
 
-	return adapter.NewGemini(ctx, cfg.geminiProject, opts...)
+	return adapter.NewGemini(ctx, cfg.geminiProject, cfg.geminiLocation, opts...)
 }
 
 // newStorage creates a new Storage adapter instance

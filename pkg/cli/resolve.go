@@ -58,7 +58,7 @@ func resolveCommand() *cli.Command {
 				return err
 			}
 
-			gemini, err := cfg.newGemini()
+			gemini, err := cfg.newGemini(ctx)
 			if err != nil {
 				return err
 			}

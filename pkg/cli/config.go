@@ -16,8 +16,9 @@ type config struct {
 	database         string
 
 	// Adapters
-	geminiProject  string
-	geminiLocation string
+	geminiProject           string
+	geminiGenerativeModel   string
+	geminiEmbeddingModel    string
 
 	// Storage
 	bucketName    string
@@ -68,11 +69,18 @@ func llmFlags(cfg *config) []cli.Flag {
 			Destination: &cfg.geminiProject,
 		},
 		&cli.StringFlag{
-			Name:        "gemini-location",
-			Usage:       "Google Cloud location for Gemini",
-			Value:       "us-central1",
-			Sources:     cli.EnvVars("LEVERET_GEMINI_LOCATION"),
-			Destination: &cfg.geminiLocation,
+			Name:        "gemini-generative-model",
+			Usage:       "Gemini generative model name",
+			Value:       "gemini-2.0-flash-exp",
+			Sources:     cli.EnvVars("LEVERET_GEMINI_GENERATIVE_MODEL"),
+			Destination: &cfg.geminiGenerativeModel,
+		},
+		&cli.StringFlag{
+			Name:        "gemini-embedding-model",
+			Usage:       "Gemini embedding model name",
+			Value:       "text-embedding-004",
+			Sources:     cli.EnvVars("LEVERET_GEMINI_EMBEDDING_MODEL"),
+			Destination: &cfg.geminiEmbeddingModel,
 		},
 	}
 }
@@ -94,14 +102,20 @@ func (cfg *config) newRepository() (repository.Repository, error) {
 }
 
 // newGemini creates a new Gemini adapter instance
-func (cfg *config) newGemini() (adapter.Gemini, error) {
+func (cfg *config) newGemini(ctx context.Context) (adapter.Gemini, error) {
 	if cfg.geminiProject == "" {
 		return nil, goerr.New("gemini-project is required")
 	}
-	if cfg.geminiLocation == "" {
-		return nil, goerr.New("gemini-location is required")
+
+	var opts []adapter.GeminiOption
+	if cfg.geminiGenerativeModel != "" {
+		opts = append(opts, adapter.WithGenerativeModel(cfg.geminiGenerativeModel))
 	}
-	return adapter.NewGemini(cfg.geminiProject, cfg.geminiLocation), nil
+	if cfg.geminiEmbeddingModel != "" {
+		opts = append(opts, adapter.WithEmbeddingModel(cfg.geminiEmbeddingModel))
+	}
+
+	return adapter.NewGemini(ctx, cfg.geminiProject, opts...)
 }
 
 // newStorage creates a new Storage adapter instance

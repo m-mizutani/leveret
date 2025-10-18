@@ -40,7 +40,6 @@ func globalFlags(cfg *config) []cli.Flag {
 			Name:        "firestore-database",
 			Aliases:     []string{"d"},
 			Usage:       "Firestore database ID",
-			Value:       "(default)",
 			Sources:     cli.EnvVars("LEVERET_FIRESTORE_DATABASE_ID"),
 			Destination: &cfg.database,
 		},

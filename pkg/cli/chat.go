@@ -21,7 +21,7 @@ func chatCommand() *cli.Command {
 	flags := []cli.Flag{
 		&cli.StringFlag{
 			Name:        "alert-id",
-			Aliases:     []string{"id"},
+			Aliases:     []string{"i"},
 			Usage:       "Alert ID to chat with",
 			Sources:     cli.EnvVars("LEVERET_ALERT_ID"),
 			Destination: (*string)(&alertID),

@@ -62,7 +62,23 @@ type Alert struct {
 }
 
 type Attribute struct {
-	Key   string
-	Value string
-	Type  AttributeType
+	Key   string        `json:"key"`
+	Value string        `json:"value"`
+	Type  AttributeType `json:"type"`
+}
+
+// Validate checks if the attribute is valid
+func (a *Attribute) Validate() error {
+	if a.Key == "" {
+		return goerr.New("attribute key is empty")
+	}
+	if a.Value == "" {
+		return goerr.New("attribute value is empty")
+	}
+	switch a.Type {
+	case AttributeTypeString, AttributeTypeNumber, AttributeTypeIPAddress, AttributeTypeDomain, AttributeTypeHash, AttributeTypeURL:
+		return nil
+	default:
+		return goerr.New("invalid attribute type", goerr.V("type", a.Type))
+	}
 }

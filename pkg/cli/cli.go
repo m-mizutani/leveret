@@ -35,6 +35,7 @@ func Run(ctx context.Context, argv []string) *Error {
 			resolveCommand(),
 			mergeCommand(),
 			unmergeCommand(),
+			historyCommand(),
 		},
 		Flags: []cli.Flag{
 			&cli.StringFlag{

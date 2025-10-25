@@ -28,4 +28,7 @@ type Repository interface {
 
 	// ListHistory retrieves conversation histories
 	ListHistory(ctx context.Context, offset, limit int) ([]*model.History, error)
+
+	// ListHistoryByAlert retrieves conversation histories for a specific alert
+	ListHistoryByAlert(ctx context.Context, alertID model.AlertID) ([]*model.History, error)
 }

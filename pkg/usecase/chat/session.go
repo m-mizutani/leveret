@@ -16,6 +16,7 @@ type Session struct {
 	repo    repository.Repository
 	gemini  adapter.Gemini
 	storage adapter.Storage
+
 	alertID model.AlertID
 	alert   *model.Alert
 	history *model.History
@@ -40,11 +41,10 @@ func New(ctx context.Context, input NewInput) (*Session, error) {
 		repo:    input.Repo,
 		gemini:  input.Gemini,
 		storage: input.Storage,
+
 		alertID: input.AlertID,
 		alert:   alert,
-		history: &model.History{
-			Contents: []*genai.Content{},
-		},
+		history: &model.History{},
 	}, nil
 }
 

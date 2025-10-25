@@ -5,6 +5,8 @@ go 1.25.0
 require (
 	cloud.google.com/go/firestore v1.19.0
 	cloud.google.com/go/storage v1.57.0
+	github.com/briandowns/spinner v1.23.2
+	github.com/chzyer/readline v1.5.1
 	github.com/google/uuid v1.6.0
 	github.com/m-mizutani/clog v0.1.0
 	github.com/m-mizutani/goerr/v2 v2.0.0
@@ -61,6 +63,7 @@ require (
 	golang.org/x/oauth2 v0.31.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/term v0.35.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/time v0.13.0 // indirect
 	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect

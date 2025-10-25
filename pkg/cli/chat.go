@@ -1,11 +1,14 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"os"
+	"io"
+	"math/rand"
+	"time"
 
+	"github.com/briandowns/spinner"
+	"github.com/chzyer/readline"
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/model"
 	"github.com/m-mizutani/leveret/pkg/usecase/chat"
@@ -63,17 +66,26 @@ func chatCommand() *cli.Command {
 				return goerr.Wrap(err, "failed to create chat session")
 			}
 
-			// Interactive chat loop
-			scanner := bufio.NewScanner(os.Stdin)
-			fmt.Fprintf(c.Root().Writer, "Chat session started. Type 'exit' to quit.\n")
+			fmt.Printf("\n")
+			// Interactive chat loop with readline support
+			rl, err := readline.New("> ")
+			if err != nil {
+				return goerr.Wrap(err, "failed to create readline")
+			}
+			defer rl.Close()
+
+			fmt.Fprintf(c.Root().Writer, "Chat session started. Type 'exit' to quit.\n\n")
 
 			for {
-				fmt.Fprintf(c.Root().Writer, "> ")
-				if !scanner.Scan() {
-					break
+				line, err := rl.Readline()
+				if err != nil {
+					if err == io.EOF || err == readline.ErrInterrupt {
+						break
+					}
+					return goerr.Wrap(err, "failed to read line")
 				}
 
-				message := scanner.Text()
+				message := line
 				if message == "exit" {
 					break
 				}
@@ -82,8 +94,18 @@ func chatCommand() *cli.Command {
 					continue
 				}
 
+				fmt.Fprintf(c.Root().Writer, "\n")
+
+				// Start spinner with random words
+				words := []string{"analyzing", "processing", "thinking", "searching", "evaluating", "examining", "investigating", "reviewing"}
+				s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+				s.Suffix = " " + words[rand.Intn(len(words))] + "..."
+				s.Start()
+
 				// Send message to Gemini
 				response, err := session.Send(ctx, message)
+				s.Stop()
+
 				if err != nil {
 					return goerr.Wrap(err, "failed to send message")
 				}

@@ -121,6 +121,7 @@ func chatCommand() *cli.Command {
 							}
 						}
 					}
+					fmt.Fprintf(c.Root().Writer, "\n")
 				}
 			}
 

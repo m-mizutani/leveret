@@ -37,6 +37,18 @@ func New(ctx context.Context, input NewInput) (*Session, error) {
 		return nil, goerr.Wrap(err, "failed to get alert")
 	}
 
+	var history *model.History
+	if input.HistoryID != nil {
+		// Load existing history
+		history, err = loadHistory(ctx, input.Repo, input.Storage, *input.HistoryID)
+		if err != nil {
+			return nil, goerr.Wrap(err, "failed to load history")
+		}
+	} else {
+		// Create new history
+		history = &model.History{}
+	}
+
 	return &Session{
 		repo:    input.Repo,
 		gemini:  input.Gemini,
@@ -44,7 +56,7 @@ func New(ctx context.Context, input NewInput) (*Session, error) {
 
 		alertID: input.AlertID,
 		alert:   alert,
-		history: &model.History{},
+		history: history,
 	}, nil
 }
 
@@ -74,6 +86,11 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 	// Add assistant response to history
 	if len(resp.Candidates) > 0 && resp.Candidates[0].Content != nil {
 		s.history.Contents = append(s.history.Contents, resp.Candidates[0].Content)
+	}
+
+	// Save history to Cloud Storage and repository
+	if err := saveHistory(ctx, s.repo, s.storage, s.alertID, s.history); err != nil {
+		return nil, goerr.Wrap(err, "failed to save history")
 	}
 
 	return resp, nil

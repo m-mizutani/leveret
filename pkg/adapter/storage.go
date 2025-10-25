@@ -6,6 +6,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/m-mizutani/goerr/v2"
+	"github.com/m-mizutani/leveret/pkg/utils/logging"
 )
 
 // Storage is the interface for conversation history storage
@@ -57,6 +58,9 @@ func (s *storageClient) Put(ctx context.Context, key string) (io.WriteCloser, er
 	bucket := s.client.Bucket(s.bucketName)
 	obj := bucket.Object(objectKey)
 	writer := obj.NewWriter(ctx)
+
+	logging.From(ctx).Info("saving to Cloud Storage", "bucket", s.bucketName, "path", objectKey)
+
 	return writer, nil
 }
 

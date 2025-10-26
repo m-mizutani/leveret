@@ -11,6 +11,7 @@ import (
 	"github.com/chzyer/readline"
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/model"
+	"github.com/m-mizutani/leveret/pkg/tool/alert"
 	"github.com/m-mizutani/leveret/pkg/usecase/chat"
 	"github.com/urfave/cli/v3"
 )
@@ -57,10 +58,11 @@ func chatCommand() *cli.Command {
 
 			// Create chat session
 			session, err := chat.New(ctx, chat.NewInput{
-				Repo:    repo,
-				Gemini:  gemini,
-				Storage: storage,
-				AlertID: alertID,
+				Repo:        repo,
+				Gemini:      gemini,
+				Storage:     storage,
+				SearchAlert: alert.NewSearchAlerts(repo),
+				AlertID:     alertID,
 			})
 			if err != nil {
 				return goerr.Wrap(err, "failed to create chat session")

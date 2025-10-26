@@ -264,3 +264,193 @@ func TestFirestoreListHistoryEmpty(t *testing.T) {
 	gt.NoError(t, err)
 	gt.A(t, retrieved).Length(0)
 }
+
+func TestFirestoreSearchAlerts(t *testing.T) {
+	repo := setupFirestore(t)
+	ctx := context.Background()
+
+	// Put test alerts with different data
+	now := time.Now()
+	alerts := []*model.Alert{
+		{
+			ID:          model.NewAlertID(),
+			Title:       "Critical Alert",
+			Description: "High severity security alert",
+			Data: map[string]interface{}{
+				"severity": "critical",
+				"source":   "guardduty",
+				"type":     "UnauthorizedAccess:EC2/SSHBruteForce",
+				"score":    9,
+			},
+			CreatedAt: now.Add(-3 * time.Hour),
+		},
+		{
+			ID:          model.NewAlertID(),
+			Title:       "High Alert",
+			Description: "Medium severity security alert",
+			Data: map[string]interface{}{
+				"severity": "high",
+				"source":   "securityhub",
+				"type":     "UnauthorizedAccess:EC2/RDPBruteForce",
+				"score":    7,
+			},
+			CreatedAt: now.Add(-2 * time.Hour),
+		},
+		{
+			ID:          model.NewAlertID(),
+			Title:       "Medium Alert",
+			Description: "Low severity security alert",
+			Data: map[string]interface{}{
+				"severity": "medium",
+				"source":   "guardduty",
+				"type":     "Recon:EC2/PortProbeUnprotectedPort",
+				"score":    5,
+			},
+			CreatedAt: now.Add(-1 * time.Hour),
+		},
+	}
+
+	for _, alert := range alerts {
+		err := repo.PutAlert(ctx, alert)
+		gt.NoError(t, err)
+	}
+
+	// Wait a bit for Firestore to index
+	time.Sleep(2 * time.Second)
+
+	t.Run("search by severity string equality", func(t *testing.T) {
+		results, err := repo.SearchAlerts(ctx, &repository.SearchAlertsInput{
+			Field:    "severity",
+			Operator: "==",
+			Value:    "critical",
+			Limit:    10,
+			Offset:   0,
+		})
+		gt.NoError(t, err)
+		gt.A(t, results).Longer(0) // At least one result
+		// Verify all results have severity=critical
+		for _, r := range results {
+			if data, ok := r.Data.(map[string]interface{}); ok {
+				gt.Equal(t, data["severity"], "critical")
+			}
+		}
+	})
+
+	t.Run("search by source", func(t *testing.T) {
+		results, err := repo.SearchAlerts(ctx, &repository.SearchAlertsInput{
+			Field:    "source",
+			Operator: "==",
+			Value:    "guardduty",
+			Limit:    10,
+			Offset:   0,
+		})
+		gt.NoError(t, err)
+		gt.A(t, results).Longer(0) // At least one result
+		// Verify all results have source=guardduty
+		for _, r := range results {
+			if data, ok := r.Data.(map[string]interface{}); ok {
+				gt.Equal(t, data["source"], "guardduty")
+			}
+		}
+	})
+
+	t.Run("search by numeric score greater than", func(t *testing.T) {
+		results, err := repo.SearchAlerts(ctx, &repository.SearchAlertsInput{
+			Field:    "score",
+			Operator: ">",
+			Value:    6,
+			Limit:    10,
+			Offset:   0,
+		})
+		gt.NoError(t, err)
+		gt.A(t, results).Longer(0) // At least one result
+		// Verify all results have score > 6
+		for _, r := range results {
+			if data, ok := r.Data.(map[string]interface{}); ok {
+				score := data["score"]
+				// Firestore may return as float64 or int64
+				switch v := score.(type) {
+				case float64:
+					if v <= 6 {
+						t.Errorf("expected score > 6, got %v", v)
+					}
+				case int64:
+					if v <= 6 {
+						t.Errorf("expected score > 6, got %v", v)
+					}
+				}
+			}
+		}
+	})
+
+	t.Run("search with limit", func(t *testing.T) {
+		results, err := repo.SearchAlerts(ctx, &repository.SearchAlertsInput{
+			Field:    "source",
+			Operator: "==",
+			Value:    "guardduty",
+			Limit:    1,
+			Offset:   0,
+		})
+		gt.NoError(t, err)
+		if len(results) > 1 {
+			t.Errorf("expected at most 1 result, got %d", len(results))
+		}
+	})
+
+	t.Run("search with no results", func(t *testing.T) {
+		results, err := repo.SearchAlerts(ctx, &repository.SearchAlertsInput{
+			Field:    "severity",
+			Operator: "==",
+			Value:    "nonexistent",
+			Limit:    10,
+			Offset:   0,
+		})
+		gt.NoError(t, err)
+		gt.A(t, results).Length(0)
+	})
+}
+
+func TestFirestoreSearchAlertsValidation(t *testing.T) {
+	repo := setupFirestore(t)
+	ctx := context.Background()
+
+	t.Run("missing field", func(t *testing.T) {
+		_, err := repo.SearchAlerts(ctx, &repository.SearchAlertsInput{
+			Field:    "",
+			Operator: "==",
+			Value:    "test",
+		})
+		gt.Error(t, err)
+	})
+
+	t.Run("missing operator", func(t *testing.T) {
+		_, err := repo.SearchAlerts(ctx, &repository.SearchAlertsInput{
+			Field:    "severity",
+			Operator: "",
+			Value:    "test",
+		})
+		gt.Error(t, err)
+	})
+
+	t.Run("default limit", func(t *testing.T) {
+		// Should not error with limit=0 (uses default)
+		_, err := repo.SearchAlerts(ctx, &repository.SearchAlertsInput{
+			Field:    "severity",
+			Operator: "==",
+			Value:    "test",
+			Limit:    0, // Should default to 10
+		})
+		gt.NoError(t, err)
+	})
+
+	t.Run("limit exceeds maximum", func(t *testing.T) {
+		// Should cap at 100
+		_, err := repo.SearchAlerts(ctx, &repository.SearchAlertsInput{
+			Field:    "severity",
+			Operator: "==",
+			Value:    "test",
+			Limit:    200, // Should be capped to 100
+		})
+		gt.NoError(t, err)
+	})
+}

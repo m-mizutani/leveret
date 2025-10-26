@@ -117,6 +117,64 @@ func (r *Firestore) ListAlerts(ctx context.Context, offset, limit int) ([]*model
 	return alerts, nil
 }
 
+func (r *Firestore) SearchAlerts(ctx context.Context, input *SearchAlertsInput) ([]*model.Alert, error) {
+	client, err := r.getClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set defaults
+	if input.Limit <= 0 {
+		input.Limit = 10
+	}
+	if input.Limit > 100 {
+		input.Limit = 100
+	}
+	if input.Offset < 0 {
+		input.Offset = 0
+	}
+
+	// Validate required fields
+	if input.Field == "" {
+		return nil, goerr.New("field is required")
+	}
+	if input.Operator == "" {
+		return nil, goerr.New("operator is required")
+	}
+
+	// Automatically prefix field path with "Data."
+	fieldPath := "Data." + input.Field
+
+	// Build Firestore query
+	query := client.Collection(alertCollection).
+		Where(fieldPath, input.Operator, input.Value).
+		Offset(input.Offset).
+		Limit(input.Limit)
+
+	// Execute query
+	iter := query.Documents(ctx)
+	defer iter.Stop()
+
+	var alerts []*model.Alert
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, goerr.Wrap(err, "failed to iterate alerts")
+		}
+
+		var alert model.Alert
+		if err := doc.DataTo(&alert); err != nil {
+			return nil, goerr.Wrap(err, "failed to parse alert data", goerr.Value("id", doc.Ref.ID))
+		}
+		alerts = append(alerts, &alert)
+	}
+
+	return alerts, nil
+}
+
 func (r *Firestore) SearchSimilarAlerts(ctx context.Context, embedding []float64, limit int) ([]*model.Alert, error) {
 	// TODO: Implement Firestore vector search
 	return nil, nil

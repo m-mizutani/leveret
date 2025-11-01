@@ -29,12 +29,30 @@ func New(tools ...Tool) *Registry {
 }
 
 // Specs returns all tool specifications for Gemini function calling
+// All function declarations are combined into a single Tool to avoid
+// Gemini API error: "Multiple tools are supported only when they are all search tools"
 func (r *Registry) Specs() []*genai.Tool {
-	specs := make([]*genai.Tool, 0, len(r.toolSpecs))
-	for spec := range r.toolSpecs {
-		specs = append(specs, spec)
+	if len(r.toolSpecs) == 0 {
+		return nil
 	}
-	return specs
+
+	// Combine all function declarations into a single Tool
+	var allDeclarations []*genai.FunctionDeclaration
+	for spec := range r.toolSpecs {
+		if spec.FunctionDeclarations != nil {
+			allDeclarations = append(allDeclarations, spec.FunctionDeclarations...)
+		}
+	}
+
+	if len(allDeclarations) == 0 {
+		return nil
+	}
+
+	return []*genai.Tool{
+		{
+			FunctionDeclarations: allDeclarations,
+		},
+	}
 }
 
 // Prompts returns all tool prompts concatenated
@@ -61,6 +79,8 @@ func (r *Registry) Flags() []cli.Flag {
 
 // Init initializes all tools and registers enabled tools
 func (r *Registry) Init(ctx context.Context, client *Client) error {
+	var enabledTools []string
+
 	for _, t := range r.allTools {
 		// Initialize tool and check if enabled
 		enabled, err := t.Init(ctx, client)
@@ -93,9 +113,20 @@ func (r *Registry) Init(ctx context.Context, client *Client) error {
 				continue
 			}
 			r.tools[fd.Name] = t
+			enabledTools = append(enabledTools, fd.Name)
 		}
 	}
+
 	return nil
+}
+
+// EnabledTools returns the list of enabled tool names
+func (r *Registry) EnabledTools() []string {
+	tools := make([]string, 0, len(r.tools))
+	for name := range r.tools {
+		tools = append(tools, name)
+	}
+	return tools
 }
 
 // Execute runs the tool with the given function call

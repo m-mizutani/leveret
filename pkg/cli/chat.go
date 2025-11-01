@@ -13,6 +13,7 @@ import (
 	"github.com/m-mizutani/leveret/pkg/model"
 	"github.com/m-mizutani/leveret/pkg/tool"
 	"github.com/m-mizutani/leveret/pkg/tool/alert"
+	"github.com/m-mizutani/leveret/pkg/tool/otx"
 	"github.com/m-mizutani/leveret/pkg/usecase/chat"
 	"github.com/urfave/cli/v3"
 )
@@ -26,6 +27,7 @@ func chatCommand() *cli.Command {
 	// Create tool registry early to get flags
 	registry := tool.New(
 		alert.NewSearchAlerts(),
+		otx.New(),
 	)
 
 	flags := []cli.Flag{
@@ -70,6 +72,13 @@ func chatCommand() *cli.Command {
 				Storage: storage,
 			}); err != nil {
 				return goerr.Wrap(err, "failed to initialize tools")
+			}
+
+			// Display enabled tools
+			if enabledTools := registry.EnabledTools(); len(enabledTools) > 0 {
+				fmt.Printf("Enabled tools: %v\n", enabledTools)
+			} else {
+				fmt.Printf("No tools enabled\n")
 			}
 
 			// Create chat session

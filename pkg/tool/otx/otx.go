@@ -21,6 +21,37 @@ type queryOTXInput struct {
 	Section       string `json:"section"`
 }
 
+func (q *queryOTXInput) Validate() error {
+	// Validate indicator_type
+	validTypes := map[string]bool{
+		"IPv4": true, "IPv6": true, "domain": true, "hostname": true, "file": true,
+	}
+	if !validTypes[q.IndicatorType] {
+		return goerr.New("invalid indicator_type",
+			goerr.V("indicator_type", q.IndicatorType),
+			goerr.V("valid_types", []string{"IPv4", "IPv6", "domain", "hostname", "file"}))
+	}
+
+	// Validate indicator is not empty
+	if q.Indicator == "" {
+		return goerr.New("indicator is required")
+	}
+
+	// Validate section
+	validSections := map[string]bool{
+		"general": true, "reputation": true, "geo": true, "malware": true,
+		"url_list": true, "passive_dns": true, "http_scans": true,
+		"nids_list": true, "analysis": true, "whois": true,
+	}
+	if !validSections[q.Section] {
+		return goerr.New("invalid section",
+			goerr.V("section", q.Section),
+			goerr.V("valid_sections", []string{"general", "reputation", "geo", "malware", "url_list", "passive_dns", "http_scans", "nids_list", "analysis", "whois"}))
+	}
+
+	return nil
+}
+
 type otx struct {
 	apiKey string
 }
@@ -96,6 +127,11 @@ func (x *otx) Execute(ctx context.Context, fc genai.FunctionCall) (*genai.Functi
 	var input queryOTXInput
 	if err := json.Unmarshal(paramsJSON, &input); err != nil {
 		return nil, goerr.Wrap(err, "failed to parse input parameters")
+	}
+
+	// Validate input
+	if err := input.Validate(); err != nil {
+		return nil, goerr.Wrap(err, "validation failed")
 	}
 
 	// Query OTX API

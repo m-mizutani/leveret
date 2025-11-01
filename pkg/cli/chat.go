@@ -24,9 +24,8 @@ func chatCommand() *cli.Command {
 	)
 
 	// Create tool registry early to get flags
-	// Note: repo will be nil at this point, tools must handle nil gracefully
 	registry := tool.New(
-		alert.NewSearchAlerts(nil),
+		alert.NewSearchAlerts(),
 	)
 
 	flags := []cli.Flag{
@@ -64,10 +63,14 @@ func chatCommand() *cli.Command {
 				return err
 			}
 
-			// Create tool registry
-			registry := tool.New(
-				alert.NewSearchAlerts(repo),
-			)
+			// Initialize tools with client
+			if err := registry.Init(ctx, &tool.Client{
+				Repo:    repo,
+				Gemini:  gemini,
+				Storage: storage,
+			}); err != nil {
+				return goerr.Wrap(err, "failed to initialize tools")
+			}
 
 			// Create chat session
 			session, err := chat.New(ctx, chat.NewInput{

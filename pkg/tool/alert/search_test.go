@@ -8,7 +8,7 @@ import (
 )
 
 func TestSearchAlertsSchema(t *testing.T) {
-	tool := alert.NewSearchAlerts(nil)
+	tool := alert.NewSearchAlerts()
 
 	// Test Spec
 	spec := tool.Spec()

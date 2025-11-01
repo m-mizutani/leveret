@@ -9,6 +9,7 @@ import (
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/model"
 	"github.com/m-mizutani/leveret/pkg/repository"
+	"github.com/m-mizutani/leveret/pkg/tool"
 	"github.com/urfave/cli/v3"
 	"google.golang.org/genai"
 )
@@ -27,20 +28,26 @@ type searchAlerts struct {
 }
 
 // NewSearchAlerts creates a new search_alerts tool
-func NewSearchAlerts(repo repository.Repository) *searchAlerts {
-	return &searchAlerts{
-		repo: repo,
-	}
-}
-
-// Prompt returns additional information to be added to the system prompt
-func (s *searchAlerts) Prompt(ctx context.Context) string {
-	return ""
+func NewSearchAlerts() *searchAlerts {
+	return &searchAlerts{}
 }
 
 // Flags returns CLI flags for this tool
 func (s *searchAlerts) Flags() []cli.Flag {
 	return nil
+}
+
+// Init initializes the tool
+func (s *searchAlerts) Init(ctx context.Context, client *tool.Client) (bool, error) {
+	// Set repository from client
+	s.repo = client.Repo
+	// Always enabled if repository is available
+	return s.repo != nil, nil
+}
+
+// Prompt returns additional information to be added to the system prompt
+func (s *searchAlerts) Prompt(ctx context.Context) string {
+	return ""
 }
 
 // Spec returns the tool specification for Gemini function calling

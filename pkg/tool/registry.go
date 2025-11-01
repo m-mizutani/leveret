@@ -19,24 +19,13 @@ type Registry struct {
 }
 
 // New creates a new tool registry with the given tools
+// Tools are not registered until Init() is called
 func New(tools ...Tool) *Registry {
-	r := &Registry{
+	return &Registry{
 		tools:     make(map[string]Tool),
 		allTools:  tools,
 		toolSpecs: make(map[*genai.Tool]bool),
 	}
-
-	for _, t := range tools {
-		spec := t.Spec()
-		if spec != nil && len(spec.FunctionDeclarations) > 0 {
-			r.toolSpecs[spec] = true
-			for _, fd := range spec.FunctionDeclarations {
-				r.tools[fd.Name] = t
-			}
-		}
-	}
-
-	return r
 }
 
 // Specs returns all tool specifications for Gemini function calling
@@ -68,6 +57,45 @@ func (r *Registry) Flags() []cli.Flag {
 		}
 	}
 	return flags
+}
+
+// Init initializes all tools and registers enabled tools
+func (r *Registry) Init(ctx context.Context, client *Client) error {
+	for _, t := range r.allTools {
+		// Initialize tool and check if enabled
+		enabled, err := t.Init(ctx, client)
+		if err != nil {
+			return goerr.Wrap(err, "failed to initialize tool")
+		}
+
+		// Skip if not enabled
+		if !enabled {
+			continue
+		}
+
+		// Register enabled tool
+		spec := t.Spec()
+		if spec == nil || len(spec.FunctionDeclarations) == 0 {
+			continue
+		}
+
+		// Register tool spec
+		r.toolSpecs[spec] = true
+
+		// Register function declarations with duplicate check
+		for _, fd := range spec.FunctionDeclarations {
+			if existing, exists := r.tools[fd.Name]; exists {
+				// Check if it's the same tool (same pointer)
+				if existing != t {
+					return goerr.New("duplicate function name", goerr.V("name", fd.Name))
+				}
+				// Same tool, skip registration
+				continue
+			}
+			r.tools[fd.Name] = t
+		}
+	}
+	return nil
 }
 
 // Execute runs the tool with the given function call

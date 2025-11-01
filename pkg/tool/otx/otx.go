@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/tool"
@@ -23,17 +22,12 @@ type queryOTXInput struct {
 }
 
 type otx struct {
-	apiKey     string
-	httpClient *http.Client
+	apiKey string
 }
 
 // New creates a new OTX tool
 func New() *otx {
-	return &otx{
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-	}
+	return &otx{}
 }
 
 // Flags returns CLI flags for this tool
@@ -133,7 +127,7 @@ func (x *otx) queryAPI(ctx context.Context, indicatorType, indicator, section st
 
 	req.Header.Set("X-OTX-API-KEY", x.apiKey)
 
-	resp, err := x.httpClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to send request")
 	}

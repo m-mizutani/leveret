@@ -9,6 +9,7 @@ import (
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/model"
 	"github.com/m-mizutani/leveret/pkg/repository"
+	"github.com/urfave/cli/v3"
 	"google.golang.org/genai"
 )
 
@@ -21,62 +22,82 @@ type searchAlertsInput struct {
 	Offset    int    `json:"offset"`
 }
 
-type SearchAlerts struct {
+type searchAlerts struct {
 	repo repository.Repository
 }
 
 // NewSearchAlerts creates a new search_alerts tool
-func NewSearchAlerts(repo repository.Repository) *SearchAlerts {
-	return &SearchAlerts{
+func NewSearchAlerts(repo repository.Repository) *searchAlerts {
+	return &searchAlerts{
 		repo: repo,
 	}
 }
 
-// FunctionDeclaration returns the function declaration for Gemini API
-func (s *SearchAlerts) FunctionDeclaration() *genai.FunctionDeclaration {
-	return &genai.FunctionDeclaration{
-		Name:        "search_alerts",
-		Description: `Search alerts by querying fields in the original alert data. Field paths are automatically prefixed with "Data."`,
-		Parameters: &genai.Schema{
-			Type: genai.TypeObject,
-			Properties: map[string]*genai.Schema{
-				"field": {
-					Type:        genai.TypeString,
-					Description: `Field path in alert data (auto-prefixed with "Data."). Use dot notation for nested fields. The field path must exactly match the structure in the Data field of the alert. Examples: "Type", "Severity", "Service.Action.ActionType", "Resource.InstanceDetails.InstanceId"`,
-				},
-				"operator": {
-					Type:        genai.TypeString,
-					Description: "Firestore comparison operator",
-					Enum:        []string{"==", "!=", "<", "<=", ">", ">=", "array-contains", "array-contains-any", "in", "not-in"},
-				},
-				"value": {
-					Type:        genai.TypeString,
-					Description: "Value to compare",
-				},
-				"value_type": {
-					Type:        genai.TypeString,
-					Description: "Type of the value (default: string)",
-					Enum:        []string{"string", "number", "boolean", "array"},
-				},
-				"limit": {
-					Type:        genai.TypeInteger,
-					Description: "Max results (default: 10, max: 100)",
-				},
-				"offset": {
-					Type:        genai.TypeInteger,
-					Description: "Skip count for pagination (default: 0)",
+// Prompt returns additional information to be added to the system prompt
+func (s *searchAlerts) Prompt(ctx context.Context) string {
+	return ""
+}
+
+// Flags returns CLI flags for this tool
+func (s *searchAlerts) Flags() []cli.Flag {
+	return nil
+}
+
+// Spec returns the tool specification for Gemini function calling
+func (s *searchAlerts) Spec() *genai.Tool {
+	return &genai.Tool{
+		FunctionDeclarations: []*genai.FunctionDeclaration{
+			{
+				Name:        "search_alerts",
+				Description: `Search alerts by querying fields in the original alert data. Field paths are automatically prefixed with "Data."`,
+				Parameters: &genai.Schema{
+					Type: genai.TypeObject,
+					Properties: map[string]*genai.Schema{
+						"field": {
+							Type:        genai.TypeString,
+							Description: `Field path in alert data (auto-prefixed with "Data."). Use dot notation for nested fields. The field path must exactly match the structure in the Data field of the alert. Examples: "Type", "Severity", "Service.Action.ActionType", "Resource.InstanceDetails.InstanceId"`,
+						},
+						"operator": {
+							Type:        genai.TypeString,
+							Description: "Firestore comparison operator",
+							Enum:        []string{"==", "!=", "<", "<=", ">", ">=", "array-contains", "array-contains-any", "in", "not-in"},
+						},
+						"value": {
+							Type:        genai.TypeString,
+							Description: "Value to compare",
+						},
+						"value_type": {
+							Type:        genai.TypeString,
+							Description: "Type of the value (default: string)",
+							Enum:        []string{"string", "number", "boolean", "array"},
+						},
+						"limit": {
+							Type:        genai.TypeInteger,
+							Description: "Max results (default: 10, max: 100)",
+						},
+						"offset": {
+							Type:        genai.TypeInteger,
+							Description: "Skip count for pagination (default: 0)",
+						},
+					},
+					Required: []string{"field", "operator", "value"},
 				},
 			},
-			Required: []string{"field", "operator", "value"},
 		},
 	}
 }
 
-// Execute runs the tool with given parameters
-func (s *SearchAlerts) Execute(ctx context.Context, params json.RawMessage) (string, error) {
+// Execute runs the tool with the given function call
+func (s *searchAlerts) Execute(ctx context.Context, fc genai.FunctionCall) (*genai.FunctionResponse, error) {
+	// Marshal function call arguments to JSON
+	paramsJSON, err := json.Marshal(fc.Args)
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to marshal function arguments")
+	}
+
 	var input searchAlertsInput
-	if err := json.Unmarshal(params, &input); err != nil {
-		return "", goerr.Wrap(err, "failed to parse input parameters")
+	if err := json.Unmarshal(paramsJSON, &input); err != nil {
+		return nil, goerr.Wrap(err, "failed to parse input parameters")
 	}
 
 	// Set default value_type to string if not specified
@@ -87,7 +108,7 @@ func (s *SearchAlerts) Execute(ctx context.Context, params json.RawMessage) (str
 	// Convert value based on value_type
 	convertedValue, err := convertValueByType(input.Value, input.ValueType)
 	if err != nil {
-		return "", goerr.Wrap(err, "failed to convert value")
+		return nil, goerr.Wrap(err, "failed to convert value")
 	}
 
 	// Search via repository
@@ -99,10 +120,15 @@ func (s *SearchAlerts) Execute(ctx context.Context, params json.RawMessage) (str
 		Offset:   input.Offset,
 	})
 	if err != nil {
-		return "", goerr.Wrap(err, "failed to search alerts")
+		return nil, goerr.Wrap(err, "failed to search alerts")
 	}
 
-	return formatResult(alerts), nil
+	result := formatResult(alerts)
+
+	return &genai.FunctionResponse{
+		Name:     fc.Name,
+		Response: map[string]any{"result": result},
+	}, nil
 }
 
 // convertValueByType converts string value to the specified type

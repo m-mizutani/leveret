@@ -9,16 +9,16 @@ import (
 	"github.com/m-mizutani/leveret/pkg/adapter"
 	"github.com/m-mizutani/leveret/pkg/model"
 	"github.com/m-mizutani/leveret/pkg/repository"
-	"github.com/m-mizutani/leveret/pkg/tool/alert"
+	"github.com/m-mizutani/leveret/pkg/tool"
 	"google.golang.org/genai"
 )
 
 // Session manages an interactive chat session for alert analysis
 type Session struct {
-	repo        repository.Repository
-	gemini      adapter.Gemini
-	storage     adapter.Storage
-	searchAlert *alert.SearchAlerts
+	repo     repository.Repository
+	gemini   adapter.Gemini
+	storage  adapter.Storage
+	registry *tool.Registry
 
 	alertID model.AlertID
 	alert   *model.Alert
@@ -27,12 +27,12 @@ type Session struct {
 
 // NewInput contains parameters for creating a new chat session
 type NewInput struct {
-	Repo        repository.Repository
-	Gemini      adapter.Gemini
-	Storage     adapter.Storage
-	SearchAlert *alert.SearchAlerts
-	AlertID     model.AlertID
-	HistoryID   *model.HistoryID // Optional: specify to continue existing conversation
+	Repo      repository.Repository
+	Gemini    adapter.Gemini
+	Storage   adapter.Storage
+	Registry  *tool.Registry
+	AlertID   model.AlertID
+	HistoryID *model.HistoryID // Optional: specify to continue existing conversation
 }
 
 func New(ctx context.Context, input NewInput) (*Session, error) {
@@ -54,10 +54,10 @@ func New(ctx context.Context, input NewInput) (*Session, error) {
 	}
 
 	return &Session{
-		repo:        input.Repo,
-		gemini:      input.Gemini,
-		storage:     input.Storage,
-		searchAlert: input.SearchAlert,
+		repo:     input.Repo,
+		gemini:   input.Gemini,
+		storage:  input.Storage,
+		registry: input.Registry,
 
 		alertID: input.AlertID,
 		alert:   alert,
@@ -83,6 +83,13 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 
 	systemPrompt := "You are a helpful assistant. When asked about the alert, refer to the following data:\n\nAlert Data:\n" + string(alertData)
 
+	// Add tool-specific prompts
+	if s.registry != nil {
+		if toolPrompts := s.registry.Prompts(ctx); toolPrompts != "" {
+			systemPrompt += "\n\n" + toolPrompts
+		}
+	}
+
 	// Add user message to history
 	userContent := genai.NewContentFromText(message, genai.RoleUser)
 	s.history.Contents = append(s.history.Contents, userContent)
@@ -92,13 +99,9 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 		SystemInstruction: genai.NewContentFromText(systemPrompt, ""),
 	}
 
-	// Add tool if available
-	if s.searchAlert != nil {
-		config.Tools = []*genai.Tool{{
-			FunctionDeclarations: []*genai.FunctionDeclaration{
-				s.searchAlert.FunctionDeclaration(),
-			},
-		}}
+	// Add tools from registry if available
+	if s.registry != nil {
+		config.Tools = s.registry.Specs()
 	}
 
 	// Tool Call loop: keep generating until no more function calls
@@ -132,22 +135,21 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 			s.history.Contents = append(s.history.Contents, candidate.Content)
 
 			for _, part := range candidate.Content.Parts {
-				funcCall := part.FunctionCall
-				if funcCall == nil {
+				if part.FunctionCall == nil {
 					continue
 				}
 
 				// Execute the tool
-				result, err := s.executeTool(ctx, funcCall)
+				funcResp, err := s.executeTool(ctx, *part.FunctionCall)
 				if err != nil {
-					result = "Error: " + err.Error()
+					// Create error response
+					funcResp = &genai.FunctionResponse{
+						Name:     part.FunctionCall.Name,
+						Response: map[string]any{"error": err.Error()},
+					}
 				}
 
 				// Add function response to history
-				funcResp := &genai.FunctionResponse{
-					Name:     funcCall.Name,
-					Response: map[string]any{"result": result},
-				}
 				funcRespContent := &genai.Content{
 					Role:  genai.RoleUser,
 					Parts: []*genai.Part{{FunctionResponse: funcResp}},
@@ -178,39 +180,33 @@ func hasFunctionCall(resp *genai.GenerateContentResponse) bool {
 	return false
 }
 
-func (s *Session) executeTool(ctx context.Context, funcCall *genai.FunctionCall) (string, error) {
-	if s.searchAlert == nil {
-		return "", goerr.New("tool not available")
-	}
-
-	// Marshal function call arguments to JSON
-	paramsJSON, err := json.Marshal(funcCall.Args)
-	if err != nil {
-		return "", goerr.Wrap(err, "failed to marshal function arguments")
+func (s *Session) executeTool(ctx context.Context, funcCall genai.FunctionCall) (*genai.FunctionResponse, error) {
+	if s.registry == nil {
+		return nil, goerr.New("tool registry not available")
 	}
 
 	// Display tool call information
 	fmt.Printf("\n🔧 Calling tool: %s\n", funcCall.Name)
-	var argsFormatted map[string]any
-	if err := json.Unmarshal(paramsJSON, &argsFormatted); err == nil {
-		for key, value := range argsFormatted {
-			fmt.Printf("   %s: %v\n", key, value)
-		}
+	if funcCall.Args != nil {
+		argsJSON, _ := json.MarshalIndent(funcCall.Args, "   ", "  ")
+		fmt.Printf("   Args:\n%s\n", string(argsJSON))
 	}
 
-	// Execute the tool
-	result, err := s.searchAlert.Execute(ctx, paramsJSON)
+	// Execute the tool via registry
+	resp, err := s.registry.Execute(ctx, funcCall)
 	if err != nil {
 		fmt.Printf("❌ Tool execution failed: %v\n", err)
-		return "", goerr.Wrap(err, "tool execution failed")
+		return nil, goerr.Wrap(err, "tool execution failed")
 	}
 
 	// Display result preview (first 200 chars)
-	resultPreview := result
-	if len(result) > 200 {
-		resultPreview = result[:200] + "..."
+	if result, ok := resp.Response["result"].(string); ok {
+		resultPreview := result
+		if len(result) > 200 {
+			resultPreview = result[:200] + "..."
+		}
+		fmt.Printf("✅ Tool result:\n%s\n\n", resultPreview)
 	}
-	fmt.Printf("✅ Tool result:\n%s\n\n", resultPreview)
 
-	return result, nil
+	return resp, nil
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/chzyer/readline"
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/model"
+	"github.com/m-mizutani/leveret/pkg/tool"
 	"github.com/m-mizutani/leveret/pkg/tool/alert"
 	"github.com/m-mizutani/leveret/pkg/usecase/chat"
 	"github.com/urfave/cli/v3"
@@ -20,6 +21,12 @@ func chatCommand() *cli.Command {
 	var (
 		cfg     config
 		alertID model.AlertID
+	)
+
+	// Create tool registry early to get flags
+	// Note: repo will be nil at this point, tools must handle nil gracefully
+	registry := tool.New(
+		alert.NewSearchAlerts(nil),
 	)
 
 	flags := []cli.Flag{
@@ -34,6 +41,7 @@ func chatCommand() *cli.Command {
 	}
 	flags = append(flags, globalFlags(&cfg)...)
 	flags = append(flags, llmFlags(&cfg)...)
+	flags = append(flags, registry.Flags()...)
 
 	return &cli.Command{
 		Name:  "chat",
@@ -56,13 +64,18 @@ func chatCommand() *cli.Command {
 				return err
 			}
 
+			// Create tool registry
+			registry := tool.New(
+				alert.NewSearchAlerts(repo),
+			)
+
 			// Create chat session
 			session, err := chat.New(ctx, chat.NewInput{
-				Repo:        repo,
-				Gemini:      gemini,
-				Storage:     storage,
-				SearchAlert: alert.NewSearchAlerts(repo),
-				AlertID:     alertID,
+				Repo:     repo,
+				Gemini:   gemini,
+				Storage:  storage,
+				Registry: registry,
+				AlertID:  alertID,
 			})
 			if err != nil {
 				return goerr.Wrap(err, "failed to create chat session")

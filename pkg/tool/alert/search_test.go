@@ -10,8 +10,14 @@ import (
 func TestSearchAlertsSchema(t *testing.T) {
 	tool := alert.NewSearchAlerts(nil)
 
+	// Test Spec
+	spec := tool.Spec()
+	gt.NotNil(t, spec)
+	gt.NotNil(t, spec.FunctionDeclarations)
+	gt.Equal(t, len(spec.FunctionDeclarations), 1)
+
 	// Test FunctionDeclaration
-	decl := tool.FunctionDeclaration()
+	decl := spec.FunctionDeclarations[0]
 	gt.NotNil(t, decl)
 	gt.Equal(t, decl.Name, "search_alerts")
 	gt.NotEqual(t, decl.Description, "")

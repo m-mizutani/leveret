@@ -13,6 +13,7 @@ Leveret is a CLI-based LLM agent for security alert analysis. It receives securi
 - Interactive chat-based analysis with Tool Call loop
 - Policy-based filtering using OPA/Rego
 - Store alerts and conversation history in Google Cloud (Firestore + Cloud Storage)
+- MCP (Model Context Protocol) integration for external tool access
 
 ## Restriction & Rules
 
@@ -333,6 +334,13 @@ All environment variables use the `LEVERET_` prefix for consistency.
 | `LEVERET_GEMINI_PROJECT` | Google Cloud project ID for Gemini | - | Yes |
 | `LEVERET_GEMINI_LOCATION` | Google Cloud location for Gemini | "us-central1" | No |
 
+### MCP Configuration
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `LEVERET_MCP_CONFIG` | Path to MCP configuration file | - | No |
+| `LEVERET_OTX_API_KEY` | OTX API key for threat intelligence | - | No |
+
 ### Command-Specific Variables
 
 | Variable | Command | Description |
@@ -353,6 +361,45 @@ All environment variables use the `LEVERET_` prefix for consistency.
 
 - ADC (Application Default Credentials) for GCP services: `gcloud auth application-default login`
 
+## MCP (Model Context Protocol) Integration
+
+Leveret supports MCP to integrate external tools and services into the chat analysis workflow.
+
+### Configuration
+
+Create an MCP configuration file (e.g., `mcp-config.yaml`):
+
+```yaml
+servers:
+  - name: filesystem
+    transport: stdio
+    command: [npx, -y, "@modelcontextprotocol/server-filesystem", /path/to/directory]
+    env:
+      NODE_ENV: production
+
+  - name: example-http
+    transport: http
+    url: http://localhost:8080/mcp
+```
+
+Specify the config file:
+- CLI flag: `--mcp-config /path/to/mcp-config.yaml`
+- Environment variable: `LEVERET_MCP_CONFIG=/path/to/mcp-config.yaml`
+
+### Supported Transports
+
+- **stdio**: Launch external process and communicate via stdin/stdout
+- **http**: Connect to HTTP-based MCP server using streamable transport
+
+### Architecture
+
+MCP integration is implemented in `pkg/service/mcp/`:
+- `client.go`: MCP server connection management
+- `provider.go`: tool.Tool implementation wrapping MCP tools
+- `schema.go`: JSON Schema to Gemini Schema conversion
+
+MCP tools are automatically registered alongside built-in tools (alert search, OTX) and made available to Gemini for function calling.
+
 ## Tool Call Loop Pattern
 
 The chat command uses Gemini's Tool Use (Function Calling) pattern:
@@ -363,4 +410,4 @@ The chat command uses Gemini's Tool Use (Function Calling) pattern:
 4. Send function result back to Gemini
 5. Repeat until Gemini returns final answer (no more function calls)
 
-This enables Gemini to dynamically call external APIs like threat intelligence services, log databases, etc.
+This enables Gemini to dynamically call external APIs like threat intelligence services, log databases, file systems (via MCP), etc.

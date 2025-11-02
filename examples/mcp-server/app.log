@@ -1,0 +1,15 @@
+2023-04-16 06:00:00 INFO EC2 instance i-11111111 started in ap-northeast-1
+2023-04-16 06:05:15 INFO Instance i-11111111 assigned private IP 192.168.0.1
+2023-04-16 06:05:16 INFO Instance i-11111111 assigned public IP 198.51.100.0
+2023-04-16 06:10:30 INFO Application started on instance i-11111111
+2023-04-16 06:11:22 WARN DNS query to suspicious domain 3322.org from instance i-11111111
+2023-04-16 06:11:45 ERROR Outbound connection to 3322.org blocked by security group
+2023-04-16 06:12:00 WARN Repeated DNS queries to malicious domain detected
+2023-04-16 06:15:30 ERROR Trojan malware activity detected on instance i-11111111
+2023-04-16 06:16:00 ALERT GuardDuty finding: Trojan:EC2/DropPoint!DNS for instance i-11111111
+2023-04-16 06:20:00 INFO Isolating instance i-11111111 for investigation
+2023-04-16 06:25:00 INFO Network logs collected from instance i-11111111
+2023-04-16 06:30:00 WARN Additional suspicious DNS queries found: 3322.org
+2023-04-16 06:35:00 INFO Security team notified about instance i-11111111 compromise
+2023-04-16 06:40:00 INFO Creating snapshot of instance i-11111111 for forensics
+2023-04-16 07:00:00 INFO Instance i-11111111 terminated per security policy

@@ -1,0 +1,11 @@
+# MCP configuration for log search server example
+# Specify this file with --mcp-config flag or LEVERET_MCP_CONFIG environment variable
+
+servers:
+  - name: log-search
+    transport: stdio
+    command:
+      - go
+      - run
+      - examples/mcp-server/main.go
+    # This server searches *.log files in examples/mcp-server/ directory

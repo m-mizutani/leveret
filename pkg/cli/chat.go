@@ -20,8 +20,9 @@ import (
 
 func chatCommand() *cli.Command {
 	var (
-		cfg     config
-		alertID model.AlertID
+		cfg      config
+		mcpCfg   mcpConfig
+		alertID  model.AlertID
 	)
 
 	// Create tool registry early to get flags
@@ -42,6 +43,7 @@ func chatCommand() *cli.Command {
 	}
 	flags = append(flags, globalFlags(&cfg)...)
 	flags = append(flags, llmFlags(&cfg)...)
+	flags = append(flags, mcpFlags(&mcpCfg)...)
 	flags = append(flags, registry.Flags()...)
 
 	return &cli.Command{
@@ -63,6 +65,17 @@ func chatCommand() *cli.Command {
 			storage, err := cfg.newStorage(ctx)
 			if err != nil {
 				return err
+			}
+
+			// Load and initialize MCP if configured
+			mcpProvider, err := mcpCfg.newMCP(ctx)
+			if err != nil {
+				return goerr.Wrap(err, "failed to initialize MCP")
+			}
+
+			// Add MCP provider to registry if available
+			if mcpProvider != nil {
+				registry.AddTool(mcpProvider)
 			}
 
 			// Initialize tools with client

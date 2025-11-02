@@ -77,6 +77,12 @@ func (r *Registry) Flags() []cli.Flag {
 	return flags
 }
 
+// AddTool adds a tool to the registry dynamically
+// This should be called before Init()
+func (r *Registry) AddTool(t Tool) {
+	r.allTools = append(r.allTools, t)
+}
+
 // Init initializes all tools and registers enabled tools
 func (r *Registry) Init(ctx context.Context, client *Client) error {
 	var enabledTools []string

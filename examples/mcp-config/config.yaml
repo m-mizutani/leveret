@@ -1,0 +1,41 @@
+# Example MCP configuration file
+# Specify this file with --mcp-config flag or LEVERET_MCP_CONFIG environment variable
+#
+# This example shows how to integrate with 3rd party MCP servers
+
+servers:
+  # Filesystem MCP server - allows reading and searching files
+  # Install: npm install -g @modelcontextprotocol/server-filesystem
+  - name: filesystem
+    transport: stdio
+    command:
+      - npx
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - /tmp
+    env:
+      NODE_ENV: production
+
+  # GitHub MCP server - allows searching repositories, issues, and PRs
+  # Install: npm install -g @modelcontextprotocol/server-github
+  # Requires: GITHUB_PERSONAL_ACCESS_TOKEN environment variable
+  # - name: github
+  #   transport: stdio
+  #   command:
+  #     - npx
+  #     - -y
+  #     - "@modelcontextprotocol/server-github"
+  #   env:
+  #     GITHUB_PERSONAL_ACCESS_TOKEN: your-token-here
+
+  # Brave Search MCP server - web search capabilities
+  # Install: npm install -g @modelcontextprotocol/server-brave-search
+  # Requires: BRAVE_API_KEY environment variable
+  # - name: brave-search
+  #   transport: stdio
+  #   command:
+  #     - npx
+  #     - -y
+  #     - "@modelcontextprotocol/server-brave-search"
+  #   env:
+  #     BRAVE_API_KEY: your-api-key-here

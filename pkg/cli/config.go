@@ -6,6 +6,8 @@ import (
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/adapter"
 	"github.com/m-mizutani/leveret/pkg/repository"
+	"github.com/m-mizutani/leveret/pkg/service/mcp"
+	"github.com/m-mizutani/leveret/pkg/tool"
 	"github.com/urfave/cli/v3"
 )
 
@@ -141,4 +143,26 @@ func (cfg *config) newStorage(ctx context.Context) (adapter.Storage, error) {
 		return nil, goerr.Wrap(err, "failed to create storage")
 	}
 	return storage, nil
+}
+
+// mcpConfig holds MCP-specific configuration
+type mcpConfig struct {
+	configPath string
+}
+
+// mcpFlags returns flags for MCP-related configuration with destination config
+func mcpFlags(cfg *mcpConfig) []cli.Flag {
+	return []cli.Flag{
+		&cli.StringFlag{
+			Name:        "mcp-config",
+			Usage:       "Path to MCP configuration file",
+			Sources:     cli.EnvVars("LEVERET_MCP_CONFIG"),
+			Destination: &cfg.configPath,
+		},
+	}
+}
+
+// newMCP creates MCP tool provider if configured
+func (cfg *mcpConfig) newMCP(ctx context.Context) (tool.Tool, error) {
+	return mcp.LoadAndConnect(ctx, cfg.configPath)
 }

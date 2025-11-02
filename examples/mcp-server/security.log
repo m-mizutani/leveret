@@ -1,0 +1,16 @@
+2023-04-16 05:50:00 INFO Security monitoring started for region ap-northeast-1
+2023-04-16 06:00:00 INFO New EC2 instance detected: i-11111111
+2023-04-16 06:05:00 INFO Instance i-11111111 network configuration validated
+2023-04-16 06:11:00 WARN GuardDuty alert: DNS query to malicious domain 3322.org
+2023-04-16 06:11:30 ALERT Threat detected: Trojan:EC2/DropPoint!DNS on instance i-11111111
+2023-04-16 06:11:45 ERROR Malware communication attempt from 198.51.100.0 to 3322.org
+2023-04-16 06:12:00 CRITICAL Multiple indicators of compromise detected on i-11111111
+2023-04-16 06:12:15 INFO Automated response: isolating instance i-11111111
+2023-04-16 06:13:00 INFO Security group modified: blocking all outbound traffic for i-11111111
+2023-04-16 06:15:00 WARN Threat intelligence match: 3322.org known drop point domain
+2023-04-16 06:20:00 INFO Forensic data collection initiated for instance i-11111111
+2023-04-16 06:25:00 INFO Memory dump captured from instance i-11111111
+2023-04-16 06:30:00 INFO Network flow logs exported for analysis
+2023-04-16 06:35:00 ALERT Incident ticket created: INC-2023-04-16-001
+2023-04-16 06:40:00 INFO Instance i-11111111 snapshot created: snap-abc123def456
+2023-04-16 07:00:00 INFO Instance i-11111111 terminated and removed from production

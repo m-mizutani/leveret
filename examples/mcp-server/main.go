@@ -14,6 +14,23 @@ type searchLogsParams struct {
 	Keyword string `json:"keyword" jsonschema:"The keyword to search for in log files (case-insensitive)"`
 }
 
+func main() {
+	server := mcp.NewServer(&mcp.Implementation{
+		Name:    "log-search-server",
+		Version: "1.0.0",
+	}, nil)
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "search_logs",
+		Description: "Search for keyword in log files (*.log) in the current directory",
+	}, searchLogs)
+
+	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
+		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
 func searchLogs(ctx context.Context, req *mcp.CallToolRequest, params *searchLogsParams) (*mcp.CallToolResult, any, error) {
 	if params.Keyword == "" {
 		return nil, nil, fmt.Errorf("keyword is required")
@@ -52,21 +69,4 @@ func searchLogs(ctx context.Context, req *mcp.CallToolRequest, params *searchLog
 			&mcp.TextContent{Text: resultText},
 		},
 	}, nil, nil
-}
-
-func main() {
-	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "log-search-server",
-		Version: "1.0.0",
-	}, nil)
-
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "search_logs",
-		Description: "Search for keyword in log files (*.log) in the current directory",
-	}, searchLogs)
-
-	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
-		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
-		os.Exit(1)
-	}
 }

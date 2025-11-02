@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/m-mizutani/goerr/v2"
-	"github.com/m-mizutani/leveret/pkg/tool"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"gopkg.in/yaml.v3"
 )
@@ -25,17 +24,22 @@ type server struct {
 	tools   []*mcp.Tool
 }
 
-// ServerConfig represents configuration for a single MCP server
-type ServerConfig struct {
-	Name      string
-	Transport string // "stdio" or "http"
-	Command   []string
-	URL       string
-	Env       map[string]string
+// Config represents the MCP configuration file structure
+type Config struct {
+	Servers []ServerConfig `yaml:"servers"`
 }
 
-// NewClient creates a new MCP client
-func NewClient() *Client {
+// ServerConfig represents configuration for a single MCP server
+type ServerConfig struct {
+	Name      string            `yaml:"name"`
+	Transport string            `yaml:"transport"` // "stdio" or "http"
+	Command   []string          `yaml:"command"`
+	URL       string            `yaml:"url"`
+	Env       map[string]string `yaml:"env"`
+}
+
+// newClient creates a new MCP client
+func newClient() *Client {
 	return &Client{
 		servers: make(map[string]*server),
 	}
@@ -177,14 +181,9 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// Config represents the MCP configuration file structure
-type Config struct {
-	Servers []ServerConfig `yaml:"servers"`
-}
-
 // LoadAndConnect loads MCP configuration from file and connects to all servers
 // Returns a tool.Tool provider if successful, nil if no config or connection fails
-func LoadAndConnect(ctx context.Context, configPath string) (tool.Tool, error) {
+func LoadAndConnect(ctx context.Context, configPath string) (*Provider, error) {
 	if configPath == "" {
 		return nil, nil // MCP config not specified
 	}
@@ -215,7 +214,7 @@ func LoadAndConnect(ctx context.Context, configPath string) (tool.Tool, error) {
 	}
 
 	// Create client and connect to all servers
-	client := NewClient()
+	client := newClient()
 	var connectedServers []string
 	var failedServers []string
 

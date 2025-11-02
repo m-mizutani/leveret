@@ -148,15 +148,8 @@ func (p *Provider) Execute(ctx context.Context, fc genai.FunctionCall) (*genai.F
 		return nil, goerr.New("tool not found", goerr.V("name", fc.Name))
 	}
 
-	// Convert arguments
-	var arguments map[string]any
-	if fc.Args != nil {
-		// fc.Args is already map[string]any
-		arguments = fc.Args
-	}
-
 	// Call MCP tool
-	result, err := p.client.CallTool(ctx, targetTool.serverName, targetTool.mcpTool.Name, arguments)
+	result, err := p.client.CallTool(ctx, targetTool.serverName, targetTool.mcpTool.Name, fc.Args)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to call MCP tool")
 	}

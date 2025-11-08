@@ -2,7 +2,6 @@ package adapter
 
 import (
 	"context"
-	"encoding/json"
 
 	"cloud.google.com/go/bigquery"
 	"github.com/m-mizutani/goerr/v2"
@@ -161,13 +160,4 @@ func (bq *bigqueryClient) GetTableMetadata(ctx context.Context, project, dataset
 	}
 
 	return metadata, nil
-}
-
-// convertToJSON converts BigQuery result to JSON-serializable format
-func convertToJSON(results []map[string]any) ([]byte, error) {
-	data, err := json.Marshal(results)
-	if err != nil {
-		return nil, goerr.Wrap(err, "failed to marshal results to JSON")
-	}
-	return data, nil
 }

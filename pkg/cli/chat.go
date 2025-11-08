@@ -13,6 +13,7 @@ import (
 	"github.com/m-mizutani/leveret/pkg/model"
 	"github.com/m-mizutani/leveret/pkg/tool"
 	"github.com/m-mizutani/leveret/pkg/tool/alert"
+	"github.com/m-mizutani/leveret/pkg/tool/bigquery"
 	"github.com/m-mizutani/leveret/pkg/tool/otx"
 	"github.com/m-mizutani/leveret/pkg/usecase/chat"
 	"github.com/urfave/cli/v3"
@@ -29,6 +30,7 @@ func chatCommand() *cli.Command {
 	registry := tool.New(
 		alert.NewSearchAlerts(),
 		otx.New(),
+		bigquery.New(),
 	)
 
 	flags := []cli.Flag{

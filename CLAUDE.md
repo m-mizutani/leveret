@@ -341,6 +341,16 @@ All environment variables use the `LEVERET_` prefix for consistency.
 | `LEVERET_MCP_CONFIG` | Path to MCP configuration file | - | No |
 | `LEVERET_OTX_API_KEY` | OTX API key for threat intelligence | - | No |
 
+### BigQuery Configuration
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `LEVERET_BIGQUERY_PROJECT` | Google Cloud project ID for BigQuery | - | No |
+| `LEVERET_BIGQUERY_RUNBOOK_DIR` | Directory containing SQL runbook files | - | No |
+| `LEVERET_BIGQUERY_SCAN_LIMIT_MB` | Maximum scan limit in MB for dry-run validation | 1024 | No |
+| `LEVERET_BIGQUERY_RESULT_STORAGE_BUCKET` | Cloud Storage bucket for query results | - | No |
+| `LEVERET_BIGQUERY_RESULT_STORAGE_PREFIX` | Cloud Storage prefix for query results | - | No |
+
 ### Command-Specific Variables
 
 | Variable | Command | Description |
@@ -398,7 +408,67 @@ MCP integration is implemented in `pkg/service/mcp/`:
 - `provider.go`: tool.Tool implementation wrapping MCP tools
 - `schema.go`: JSON Schema to Gemini Schema conversion
 
-MCP tools are automatically registered alongside built-in tools (alert search, OTX) and made available to Gemini for function calling.
+MCP tools are automatically registered alongside built-in tools (alert search, OTX, BigQuery) and made available to Gemini for function calling.
+
+## BigQuery Integration
+
+Leveret supports BigQuery as a tool for querying log data during chat analysis. This enables LLM to generate and execute SQL queries based on natural language requests.
+
+### Configuration
+
+Set the following environment variables or CLI flags:
+- `LEVERET_BIGQUERY_PROJECT`: Google Cloud project ID for BigQuery
+- `LEVERET_BIGQUERY_RUNBOOK_DIR`: Directory containing SQL runbook files (optional)
+- `LEVERET_BIGQUERY_SCAN_LIMIT_MB`: Maximum data scan limit in MB (default: 1024)
+- `LEVERET_BIGQUERY_RESULT_STORAGE_BUCKET`: Cloud Storage bucket for storing query results
+- `LEVERET_BIGQUERY_RESULT_STORAGE_PREFIX`: Prefix for result objects in Cloud Storage (optional)
+
+### Available Tools
+
+1. **bigquery_query**: Execute SQL queries with automatic dry-run validation
+   - Validates scan size before execution
+   - Returns error if scan limit is exceeded
+   - Stores results in Cloud Storage
+   - Returns job ID for result retrieval
+
+2. **bigquery_get_result**: Retrieve query results by job ID
+   - Supports pagination (limit/offset)
+   - Returns formatted results
+
+3. **bigquery_schema**: Get table schema information
+   - Requires project, dataset_id, and table name
+   - Returns field names, types, and descriptions
+
+4. **bigquery_runbook**: Access pre-defined SQL queries
+   - Use `runbook_id="list"` to see all available runbooks
+   - Use specific runbook ID to get SQL content
+
+### Runbook Format
+
+SQL runbook files (*.sql) should include metadata comments at the beginning:
+
+```sql
+-- title: Authentication failure analysis
+-- description: Query to find failed authentication attempts in the last 24 hours
+
+SELECT
+  timestamp,
+  user_id,
+  source_ip,
+  error_message
+FROM
+  `my-project.security_logs.authentication`
+WHERE
+  status = 'FAILED'
+  AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
+ORDER BY
+  timestamp DESC
+LIMIT 100
+```
+
+- Place runbook files in the directory specified by `LEVERET_BIGQUERY_RUNBOOK_DIR`
+- Runbook IDs are automatically generated from filenames (without .sql extension)
+- Title and description are extracted from `-- title:` and `-- description:` comments
 
 ## Tool Call Loop Pattern
 

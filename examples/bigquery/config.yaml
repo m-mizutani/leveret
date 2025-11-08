@@ -1,0 +1,18 @@
+# BigQuery Configuration
+# List of tables to be used for querying
+
+tables:
+  - project: mztn-audit
+    dataset: google_cloud_audit
+    table: cloudaudit_googleapis_com_activity
+    description: Admin activity audit logs (configuration changes, resource creation/deletion)
+
+  - project: mztn-audit
+    dataset: google_cloud_audit
+    table: cloudaudit_googleapis_com_data_access
+    description: Data access audit logs (read/write operations on data)
+
+  - project: mztn-audit
+    dataset: google_cloud_audit
+    table: cloudaudit_googleapis_com_system_event
+    description: System event audit logs (GCP-initiated operations)

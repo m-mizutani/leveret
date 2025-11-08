@@ -34,12 +34,15 @@ func NewProvider(client *Client) *Provider {
 
 // Flags returns CLI flags for MCP provider
 func (p *Provider) Flags() []cli.Flag {
+	if p == nil {
+		return nil
+	}
 	return nil // MCP config is loaded separately
 }
 
 // Init initializes the MCP provider and registers tools
 func (p *Provider) Init(ctx context.Context, client *tool.Client) (bool, error) {
-	if p.client == nil {
+	if p == nil || p.client == nil {
 		return false, nil // MCP client not configured
 	}
 
@@ -110,7 +113,7 @@ func (p *Provider) convertToFunctionDeclaration(t *mcp.Tool) (*genai.FunctionDec
 
 // Spec returns the tool specification for Gemini
 func (p *Provider) Spec() *genai.Tool {
-	if len(p.tools) == 0 {
+	if p == nil || len(p.tools) == 0 {
 		return nil
 	}
 
@@ -126,7 +129,7 @@ func (p *Provider) Spec() *genai.Tool {
 
 // Prompt returns additional prompt information
 func (p *Provider) Prompt(ctx context.Context) string {
-	if len(p.tools) == 0 {
+	if p == nil || len(p.tools) == 0 {
 		return ""
 	}
 
@@ -135,6 +138,10 @@ func (p *Provider) Prompt(ctx context.Context) string {
 
 // Execute executes an MCP tool
 func (p *Provider) Execute(ctx context.Context, fc genai.FunctionCall) (*genai.FunctionResponse, error) {
+	if p == nil {
+		return nil, goerr.New("MCP provider is nil")
+	}
+
 	// Find the tool
 	var targetTool *mcpTool
 	for _, t := range p.tools {

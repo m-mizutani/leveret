@@ -199,11 +199,25 @@ func (s *Session) executeTool(ctx context.Context, funcCall genai.FunctionCall) 
 		return nil, goerr.Wrap(err, "tool execution failed")
 	}
 
+	// Check if response contains error
+	if errMsg, ok := resp.Response["error"].(string); ok {
+		fmt.Printf("⚠️  Tool returned error:\n%s\n\n", errMsg)
+		return resp, nil
+	}
+
 	// Display result preview (first 200 chars)
 	if result, ok := resp.Response["result"].(string); ok {
 		resultPreview := result
 		if len(result) > 200 {
 			resultPreview = result[:200] + "..."
+		}
+		fmt.Printf("✅ Tool result:\n%s\n\n", resultPreview)
+	} else {
+		// Display other response fields
+		respJSON, _ := json.MarshalIndent(resp.Response, "", "  ")
+		resultPreview := string(respJSON)
+		if len(resultPreview) > 200 {
+			resultPreview = resultPreview[:200] + "..."
 		}
 		fmt.Printf("✅ Tool result:\n%s\n\n", resultPreview)
 	}

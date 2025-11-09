@@ -158,7 +158,7 @@ func (t *Tool) Spec() *genai.Tool {
 	declarations := []*genai.FunctionDeclaration{
 		{
 			Name:        "bigquery_query",
-			Description: "Execute a BigQuery SQL query with automatic dry-run validation. The query is validated for scan limit before execution and results are stored for later retrieval.",
+			Description: fmt.Sprintf("Execute a BigQuery SQL query with automatic dry-run validation. The query is validated for scan limit (max: %d MB) before execution and results are stored for later retrieval.", t.scanLimitMB),
 			Parameters: &genai.Schema{
 				Type: genai.TypeObject,
 				Properties: map[string]*genai.Schema{
@@ -182,11 +182,11 @@ func (t *Tool) Spec() *genai.Tool {
 					},
 					"limit": {
 						Type:        genai.TypeInteger,
-						Description: "Maximum number of rows to return (default: 100)",
+						Description: fmt.Sprintf("Maximum number of rows to return (default: 100, max: %d)", t.resultLimitRows),
 					},
 					"offset": {
 						Type:        genai.TypeInteger,
-						Description: "Number of rows to skip (default: 0)",
+						Description: "Number of rows to skip for pagination (default: 0, must be >= 0)",
 					},
 				},
 				Required: []string{"job_id"},

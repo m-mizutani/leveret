@@ -81,7 +81,9 @@ func (x *otx) Init(ctx context.Context, client *tool.Client) (bool, error) {
 
 // Prompt returns additional information to be added to the system prompt
 func (x *otx) Prompt(ctx context.Context) string {
-	return `When analyzing security indicators (IP addresses, domains, file hashes, etc.), you can use the query_otx tool to get threat intelligence from AlienVault OTX.`
+	return `### OTX Threat Intelligence
+
+When analyzing security indicators (IP addresses, domains, file hashes, etc.), you can use the **query_otx** tool to get threat intelligence from AlienVault OTX.`
 }
 
 // Spec returns the tool specification for Gemini function calling

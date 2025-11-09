@@ -1,9 +1,12 @@
 package chat
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
+	"text/template"
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/adapter"
@@ -20,19 +23,26 @@ type Session struct {
 	storage  adapter.Storage
 	registry *tool.Registry
 
-	alertID model.AlertID
-	alert   *model.Alert
-	history *model.History
+	alertID         model.AlertID
+	alert           *model.Alert
+	history         *model.History
+	environmentInfo string
 }
+
+//go:embed prompt/session.md
+var sessionPromptRaw string
+
+var sessionPromptTmpl = template.Must(template.New("session").Parse(sessionPromptRaw))
 
 // NewInput contains parameters for creating a new chat session
 type NewInput struct {
-	Repo      repository.Repository
-	Gemini    adapter.Gemini
-	Storage   adapter.Storage
-	Registry  *tool.Registry
-	AlertID   model.AlertID
-	HistoryID *model.HistoryID // Optional: specify to continue existing conversation
+	Repo            repository.Repository
+	Gemini          adapter.Gemini
+	Storage         adapter.Storage
+	Registry        *tool.Registry
+	AlertID         model.AlertID
+	HistoryID       *model.HistoryID // Optional: specify to continue existing conversation
+	EnvironmentInfo string           // Optional: environment context for better analysis
 }
 
 func New(ctx context.Context, input NewInput) (*Session, error) {
@@ -59,9 +69,10 @@ func New(ctx context.Context, input NewInput) (*Session, error) {
 		storage:  input.Storage,
 		registry: input.Registry,
 
-		alertID: input.AlertID,
-		alert:   alert,
-		history: history,
+		alertID:         input.AlertID,
+		alert:           alert,
+		history:         history,
+		environmentInfo: input.EnvironmentInfo,
 	}, nil
 }
 
@@ -75,19 +86,10 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 		s.history.Title = title
 	}
 
-	// Build system prompt with alert data
-	alertData, err := json.MarshalIndent(s.alert.Data, "", "  ")
+	// Build system prompt using template
+	systemPrompt, err := s.buildSystemPrompt(ctx)
 	if err != nil {
-		return nil, goerr.Wrap(err, "failed to marshal alert data")
-	}
-
-	systemPrompt := "You are a helpful assistant. When asked about the alert, refer to the following data:\n\nAlert Data:\n" + string(alertData)
-
-	// Add tool-specific prompts
-	if s.registry != nil {
-		if toolPrompts := s.registry.Prompts(ctx); toolPrompts != "" {
-			systemPrompt += "\n\n" + toolPrompts
-		}
+		return nil, goerr.Wrap(err, "failed to build system prompt")
 	}
 
 	// Add user message to history
@@ -105,7 +107,7 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 	}
 
 	// Tool Call loop: keep generating until no more function calls
-	const maxIterations = 10
+	const maxIterations = 32
 	var finalResp *genai.GenerateContentResponse
 
 	for i := 0; i < maxIterations; i++ {
@@ -135,6 +137,11 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 			s.history.Contents = append(s.history.Contents, candidate.Content)
 
 			for _, part := range candidate.Content.Parts {
+				// Display text content if present
+				if part.Text != "" {
+					fmt.Printf("\n💭 %s\n\n", part.Text)
+				}
+
 				if part.FunctionCall == nil {
 					continue
 				}
@@ -223,4 +230,32 @@ func (s *Session) executeTool(ctx context.Context, funcCall genai.FunctionCall) 
 	}
 
 	return resp, nil
+}
+
+func (s *Session) buildSystemPrompt(ctx context.Context) (string, error) {
+	// Marshal alert data
+	alertData, err := json.MarshalIndent(s.alert.Data, "", "  ")
+	if err != nil {
+		return "", goerr.Wrap(err, "failed to marshal alert data")
+	}
+
+	// Collect tool-specific prompts from registry
+	toolPrompts := ""
+	if s.registry != nil {
+		toolPrompts = s.registry.Prompts(ctx)
+	}
+
+	// Execute template
+	var buf bytes.Buffer
+	if err := sessionPromptTmpl.Execute(&buf, map[string]any{
+		"AlertID":         s.alertID,
+		"Alert":           s.alert,
+		"AlertData":       string(alertData),
+		"EnvironmentInfo": s.environmentInfo,
+		"ToolPrompts":     toolPrompts,
+	}); err != nil {
+		return "", goerr.Wrap(err, "failed to execute session prompt template")
+	}
+
+	return buf.String(), nil
 }

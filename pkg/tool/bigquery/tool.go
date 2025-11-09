@@ -118,14 +118,15 @@ func (t *Tool) Prompt(ctx context.Context) string {
 
 	// Add runBook information
 	if len(t.runBooks) > 0 {
-		lines = append(lines, "Available BigQuery runBooks:")
+		lines = append(lines, "### BigQuery RunBooks")
+		lines = append(lines, "")
 		for _, rb := range t.runBooks {
-			line := fmt.Sprintf("- ID: %s", rb.ID)
+			line := fmt.Sprintf("- **ID**: `%s`", rb.ID)
 			if rb.Title != "" {
-				line += fmt.Sprintf(", Title: %s", rb.Title)
+				line += fmt.Sprintf(", **Title**: %s", rb.Title)
 			}
 			if rb.Description != "" {
-				line += fmt.Sprintf(", Description: %s", rb.Description)
+				line += fmt.Sprintf(", **Description**: %s", rb.Description)
 			}
 			lines = append(lines, line)
 		}
@@ -136,9 +137,10 @@ func (t *Tool) Prompt(ctx context.Context) string {
 		if len(lines) > 0 {
 			lines = append(lines, "")
 		}
-		lines = append(lines, "Available BigQuery tables:")
+		lines = append(lines, "### BigQuery Tables")
+		lines = append(lines, "")
 		for _, table := range t.tables {
-			line := fmt.Sprintf("- %s", table.FullName())
+			line := fmt.Sprintf("- **%s**", table.FullName())
 			if table.Description != "" {
 				line += fmt.Sprintf(": %s", table.Description)
 			}

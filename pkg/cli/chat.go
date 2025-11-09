@@ -21,9 +21,10 @@ import (
 
 func chatCommand() *cli.Command {
 	var (
-		cfg      config
-		mcpCfg   mcpConfig
-		alertID  model.AlertID
+		cfg             config
+		mcpCfg          mcpConfig
+		alertID         model.AlertID
+		environmentInfo string
 	)
 
 	// Create tool registry early to get flags
@@ -41,6 +42,12 @@ func chatCommand() *cli.Command {
 			Sources:     cli.EnvVars("LEVERET_ALERT_ID"),
 			Destination: (*string)(&alertID),
 			Required:    true,
+		},
+		&cli.StringFlag{
+			Name:        "environment-info",
+			Usage:       "Environment context information for better analysis",
+			Sources:     cli.EnvVars("LEVERET_ENVIRONMENT_INFO"),
+			Destination: &environmentInfo,
 		},
 	}
 	flags = append(flags, globalFlags(&cfg)...)
@@ -98,11 +105,12 @@ func chatCommand() *cli.Command {
 
 			// Create chat session
 			session, err := chat.New(ctx, chat.NewInput{
-				Repo:     repo,
-				Gemini:   gemini,
-				Storage:  storage,
-				Registry: registry,
-				AlertID:  alertID,
+				Repo:            repo,
+				Gemini:          gemini,
+				Storage:         storage,
+				Registry:        registry,
+				AlertID:         alertID,
+				EnvironmentInfo: environmentInfo,
 			})
 			if err != nil {
 				return goerr.Wrap(err, "failed to create chat session")

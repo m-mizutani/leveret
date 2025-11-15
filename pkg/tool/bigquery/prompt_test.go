@@ -45,7 +45,7 @@ SELECT * FROM logs WHERE level = 'ERROR'`
 	prompt := bqTool.Prompt(ctx)
 
 	// Verify prompt contains runbook information
-	gt.S(t, prompt).Contains("Available BigQuery runBooks:")
+	gt.S(t, prompt).Contains("### BigQuery RunBooks")
 	gt.S(t, prompt).Contains("user_activity")
 	gt.S(t, prompt).Contains("User Activity Analysis")
 	gt.S(t, prompt).Contains("Analyze user activity patterns")
@@ -90,7 +90,7 @@ func TestPrompt_WithTables(t *testing.T) {
 	prompt := bqTool.Prompt(ctx)
 
 	// Verify prompt contains table information
-	gt.S(t, prompt).Contains("Available BigQuery tables:")
+	gt.S(t, prompt).Contains("### BigQuery Tables")
 	gt.S(t, prompt).Contains("proj1.dataset1.events")
 	gt.S(t, prompt).Contains("User event logs")
 	gt.S(t, prompt).Contains("proj1.dataset1.errors")
@@ -139,10 +139,10 @@ SELECT 1`
 	prompt := bqTool.Prompt(ctx)
 
 	// Verify prompt contains both runbooks and tables
-	gt.S(t, prompt).Contains("Available BigQuery runBooks:")
+	gt.S(t, prompt).Contains("### BigQuery RunBooks")
 	gt.S(t, prompt).Contains("test")
 	gt.S(t, prompt).Contains("Test Query")
-	gt.S(t, prompt).Contains("Available BigQuery tables:")
+	gt.S(t, prompt).Contains("### BigQuery Tables")
 	gt.S(t, prompt).Contains("proj1.ds1.tbl1")
 	gt.S(t, prompt).Contains("Test table")
 
@@ -218,12 +218,12 @@ SELECT * FROM events WHERE timestamp > CURRENT_TIMESTAMP() - INTERVAL 1 DAY`
 	prompt := bqTool.Prompt(ctx)
 
 	// Verify comprehensive prompt
-	gt.S(t, prompt).Contains("Available BigQuery runBooks:")
+	gt.S(t, prompt).Contains("### BigQuery RunBooks")
 	gt.S(t, prompt).Contains("recent")
 	gt.S(t, prompt).Contains("Recent Activity")
 	gt.S(t, prompt).Contains("Get recent user activities")
 
-	gt.S(t, prompt).Contains("Available BigQuery tables:")
+	gt.S(t, prompt).Contains("### BigQuery Tables")
 	gt.S(t, prompt).Contains("test-project.test_dataset.events")
 	gt.S(t, prompt).Contains("Event tracking table")
 	gt.S(t, prompt).Contains("test-project.test_dataset.users")

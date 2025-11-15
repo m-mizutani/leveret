@@ -113,6 +113,27 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 	for i := 0; i < maxIterations; i++ {
 		resp, err := s.gemini.GenerateContent(ctx, s.history.Contents, config)
 		if err != nil {
+			// Check if error is due to token limit exceeded
+			if isTokenLimitError(err) {
+				// Attempt compression
+				fmt.Println("\n📦 Token limit exceeded. Compressing conversation history...")
+
+				compressedContents, compressErr := compressHistory(ctx, s.gemini, s.history.Contents)
+				if compressErr != nil {
+					return nil, goerr.Wrap(compressErr, "failed to compress history")
+				}
+
+				// Update history with compressed contents
+				s.history.Contents = compressedContents
+
+				// Save compressed history immediately
+				if saveErr := saveHistory(ctx, s.repo, s.storage, s.alertID, s.history); saveErr != nil {
+					fmt.Printf("⚠️  Warning: failed to save compressed history: %v\n", saveErr)
+				}
+
+				fmt.Println("✅ Conversation history compressed successfully. Retrying...")
+				continue // Retry with compressed history
+			}
 			return nil, goerr.Wrap(err, "failed to generate content")
 		}
 

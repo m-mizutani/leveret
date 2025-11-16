@@ -16,7 +16,7 @@ type runBook struct {
 	Title       string
 	Description string
 	FilePath    string
-	SQL         string
+	Query       string
 }
 
 // loadRunBooks scans a directory and loads all SQL files as runBooks
@@ -66,7 +66,7 @@ func loadRunBooks(dir string) (map[string]*runBook, error) {
 			Title:       title,
 			Description: description,
 			FilePath:    filePath,
-			SQL:         sql,
+			Query:       sql,
 		}
 	}
 

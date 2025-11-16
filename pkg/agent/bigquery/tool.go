@@ -2,8 +2,10 @@ package bigquery
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/adapter"
@@ -125,9 +127,26 @@ func (t *Tool) Init(ctx context.Context, client *tool.Client) (bool, error) {
 
 // Prompt returns additional information to be added to the system prompt
 func (t *Tool) Prompt(ctx context.Context) string {
-	// BigQuery agent handles its own context internally
-	// No need to expose table/runbook details to main agent
-	return ""
+	if !t.enabled || t.agent == nil {
+		return ""
+	}
+
+	// Only expose table list to main agent (not runbooks)
+	if len(t.agent.tables) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("### BigQuery Tables\n\n")
+	for _, table := range t.agent.tables {
+		sb.WriteString(fmt.Sprintf("- **%s**", table.FullName()))
+		if table.Description != "" {
+			sb.WriteString(fmt.Sprintf(": %s", table.Description))
+		}
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
 }
 
 // Spec returns the tool specification for Gemini function calling

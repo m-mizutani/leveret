@@ -1,12 +1,14 @@
 package bigquery
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
+	"text/template"
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/adapter"
@@ -148,38 +150,36 @@ func (a *Agent) Execute(ctx context.Context, query string) (string, error) {
 	return finalResponse, nil
 }
 
+type systemPromptData struct {
+	RunBooks []runBook
+	Tables   []tableInfo
+}
+
 func (a *Agent) buildSystemPrompt() string {
-	var sb strings.Builder
-	sb.WriteString(systemPromptRaw)
-
-	// Add runBook information
-	if len(a.runBooks) > 0 {
-		sb.WriteString("\n\n## Available RunBooks\n\n")
-		for _, rb := range a.runBooks {
-			sb.WriteString(fmt.Sprintf("- **ID**: `%s`", rb.ID))
-			if rb.Title != "" {
-				sb.WriteString(fmt.Sprintf(", **Title**: %s", rb.Title))
-			}
-			if rb.Description != "" {
-				sb.WriteString(fmt.Sprintf(", **Description**: %s", rb.Description))
-			}
-			sb.WriteString("\n")
-		}
+	tmpl, err := template.New("system").Parse(systemPromptRaw)
+	if err != nil {
+		// Fallback to raw template if parsing fails
+		return systemPromptRaw
 	}
 
-	// Add table information
-	if len(a.tables) > 0 {
-		sb.WriteString("\n\n## Available Tables\n\n")
-		for _, table := range a.tables {
-			sb.WriteString(fmt.Sprintf("- **%s**", table.FullName()))
-			if table.Description != "" {
-				sb.WriteString(fmt.Sprintf(": %s", table.Description))
-			}
-			sb.WriteString("\n")
-		}
+	// Convert map to slice for template
+	runBookList := make([]runBook, 0, len(a.runBooks))
+	for _, rb := range a.runBooks {
+		runBookList = append(runBookList, *rb)
 	}
 
-	return sb.String()
+	data := systemPromptData{
+		RunBooks: runBookList,
+		Tables:   a.tables,
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		// Fallback to raw template if execution fails
+		return systemPromptRaw
+	}
+
+	return buf.String()
 }
 
 func (a *Agent) internalToolSpec() *genai.Tool {

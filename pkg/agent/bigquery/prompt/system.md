@@ -81,3 +81,17 @@ The main agent will perform the security analysis. Your job is to retrieve and p
 
 [Raw data in table or JSON format]
 ```
+{{if .RunBooks}}
+
+## Available RunBooks
+{{range .RunBooks}}
+- **ID**: `{{.ID}}`{{if .Title}}, **Title**: {{.Title}}{{end}}{{if .Description}}, **Description**: {{.Description}}{{end}}
+{{- end}}
+{{end}}
+{{if .Tables}}
+
+## Available Tables
+{{range .Tables}}
+- **{{.FullName}}**{{if .Description}}: {{.Description}}{{end}}
+{{- end}}
+{{end}}

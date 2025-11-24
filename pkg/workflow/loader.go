@@ -9,58 +9,63 @@ import (
 	"github.com/open-policy-agent/opa/v1/rego"
 )
 
-// loadPolicy loads a Rego policy file and prepares a query
-func loadPolicy(ctx context.Context, policyPath, query string) (*rego.PreparedEvalQuery, error) {
-	// Check if policy file exists
-	if _, err := os.Stat(policyPath); err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil // Policy file not found, return nil (caller should use default behavior)
-		}
-		return nil, goerr.Wrap(err, "failed to stat policy file", goerr.Value("path", policyPath))
-	}
-
-	// Read policy file
-	data, err := os.ReadFile(policyPath)
-	if err != nil {
-		return nil, goerr.Wrap(err, "failed to read policy file", goerr.Value("path", policyPath))
-	}
-
-	// Prepare Rego query
-	r := rego.New(
-		rego.Query(query),
-		rego.Module(policyPath, string(data)),
-	)
-
-	prepared, err := r.PrepareForEval(ctx)
-	if err != nil {
-		return nil, goerr.Wrap(err, "failed to prepare Rego query",
-			goerr.Value("path", policyPath),
-			goerr.Value("query", query))
-	}
-
-	return &prepared, nil
-}
-
-// loadPolicies loads all three phase policies
+// loadPolicies loads all Rego files from policyDir and prepares queries for each phase
 func loadPolicies(ctx context.Context, policyDir string) (ingest, enrich, triage *rego.PreparedEvalQuery, err error) {
-	ingestPath := filepath.Join(policyDir, "ingest.rego")
-	enrichPath := filepath.Join(policyDir, "enrich.rego")
-	triagePath := filepath.Join(policyDir, "triage.rego")
-
-	ingest, err = loadPolicy(ctx, ingestPath, "data.ingest")
+	// Read all .rego files from the directory
+	files, err := filepath.Glob(filepath.Join(policyDir, "*.rego"))
 	if err != nil {
-		return nil, nil, nil, goerr.Wrap(err, "failed to load ingest policy")
+		return nil, nil, nil, goerr.Wrap(err, "failed to glob policy files")
 	}
 
-	enrich, err = loadPolicy(ctx, enrichPath, "data.enrich")
-	if err != nil {
-		return nil, nil, nil, goerr.Wrap(err, "failed to load enrich policy")
+	if len(files) == 0 {
+		// No policy files found, return nil for all phases
+		return nil, nil, nil, nil
 	}
 
-	triage, err = loadPolicy(ctx, triagePath, "data.triage")
+	// Load all policy files as modules
+	modules := make([]func(*rego.Rego), 0, len(files))
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			return nil, nil, nil, goerr.Wrap(err, "failed to read policy file", goerr.Value("path", file))
+		}
+		modules = append(modules, rego.Module(file, string(data)))
+	}
+
+	// Prepare query for ingest phase
+	ingest, err = prepareQuery(ctx, modules, "data.ingest")
 	if err != nil {
-		return nil, nil, nil, goerr.Wrap(err, "failed to load triage policy")
+		return nil, nil, nil, goerr.Wrap(err, "failed to prepare ingest query")
+	}
+
+	// Prepare query for enrich phase
+	enrich, err = prepareQuery(ctx, modules, "data.enrich")
+	if err != nil {
+		return nil, nil, nil, goerr.Wrap(err, "failed to prepare enrich query")
+	}
+
+	// Prepare query for triage phase
+	triage, err = prepareQuery(ctx, modules, "data.triage")
+	if err != nil {
+		return nil, nil, nil, goerr.Wrap(err, "failed to prepare triage query")
 	}
 
 	return ingest, enrich, triage, nil
+}
+
+// prepareQuery prepares a Rego query with all loaded modules
+func prepareQuery(ctx context.Context, modules []func(*rego.Rego), query string) (*rego.PreparedEvalQuery, error) {
+	// Build Rego options
+	options := make([]func(*rego.Rego), 0, len(modules)+1)
+	options = append(options, rego.Query(query))
+	options = append(options, modules...)
+
+	r := rego.New(options...)
+
+	prepared, err := r.PrepareForEval(ctx)
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to prepare query", goerr.Value("query", query))
+	}
+
+	return &prepared, nil
 }

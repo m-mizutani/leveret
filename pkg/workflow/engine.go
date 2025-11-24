@@ -13,6 +13,7 @@ import (
 	"github.com/m-mizutani/leveret/pkg/model"
 	"github.com/m-mizutani/leveret/pkg/tool"
 	"github.com/open-policy-agent/opa/v1/rego"
+	"github.com/open-policy-agent/opa/v1/topdown/print"
 	"google.golang.org/genai"
 )
 
@@ -20,6 +21,14 @@ import (
 var enrichPromptRaw string
 
 var enrichPromptTmpl = template.Must(template.New("enrich").Parse(enrichPromptRaw))
+
+// regoPrintHook implements print.Hook interface for Rego print() statements
+type regoPrintHook struct{}
+
+func (h *regoPrintHook) Print(ctx print.Context, message string) error {
+	fmt.Printf("   [Rego] %s\n", message)
+	return nil
+}
 
 // Engine is the workflow engine that orchestrates the three phases
 type Engine struct {
@@ -174,7 +183,7 @@ func (e *Engine) runIngest(ctx context.Context, rawData any) (*IngestResult, err
 		return &IngestResult{Alert: nil}, nil
 	}
 
-	rs, err := e.ingestPolicy.Eval(ctx, rego.EvalInput(rawData))
+	rs, err := e.ingestPolicy.Eval(ctx, rego.EvalInput(rawData), rego.EvalPrintHook(&regoPrintHook{}))
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to evaluate ingest policy")
 	}
@@ -229,7 +238,7 @@ func (e *Engine) runEnrich(ctx context.Context, alert *model.Alert) (*EnrichResu
 		"attributes":  alert.Attributes,
 	}
 
-	rs, err := e.enrichPolicy.Eval(ctx, rego.EvalInput(input))
+	rs, err := e.enrichPolicy.Eval(ctx, rego.EvalInput(input), rego.EvalPrintHook(&regoPrintHook{}))
 	if err != nil {
 		return nil, nil, goerr.Wrap(err, "failed to evaluate enrich policy")
 	}
@@ -545,7 +554,7 @@ func (e *Engine) runTriage(ctx context.Context, alert *model.Alert, enrichExecut
 		"enrich": enrichResults,
 	}
 
-	rs, err := e.triagePolicy.Eval(ctx, rego.EvalInput(input))
+	rs, err := e.triagePolicy.Eval(ctx, rego.EvalInput(input), rego.EvalPrintHook(&regoPrintHook{}))
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to evaluate triage policy")
 	}

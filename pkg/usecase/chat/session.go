@@ -77,6 +77,19 @@ func New(ctx context.Context, input NewInput) (*Session, error) {
 }
 
 func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateContentResponse, error) {
+	// Check if plan & execute mode should be used
+	if shouldUsePlanExecuteMode(ctx, s.gemini, message, s.history.Contents) {
+		// Use plan & execute mode
+		result, err := s.SendWithPlanExecute(ctx, message)
+		if err != nil {
+			return nil, goerr.Wrap(err, "Plan & Execute mode failed")
+		}
+		// Plan & Execute mode succeeded
+		// Convert to response format (create a synthetic response)
+		return s.createResponseFromPlanExecute(result), nil
+	}
+
+	// Direct mode (existing logic)
 	// Generate title from first user input if this is a new history
 	if len(s.history.Contents) == 0 {
 		title, err := generateTitle(ctx, s.gemini, message)
@@ -97,8 +110,13 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 	s.history.Contents = append(s.history.Contents, userContent)
 
 	// Build config with system instruction and tools
+	thinkingBudget := int32(0)
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: genai.NewContentFromText(systemPrompt, ""),
+		ThinkingConfig: &genai.ThinkingConfig{
+			IncludeThoughts: false,
+			ThinkingBudget:  &thinkingBudget,
+		},
 	}
 
 	// Add tools from registry if available
@@ -128,10 +146,10 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 
 				// Save compressed history immediately
 				if saveErr := saveHistory(ctx, s.repo, s.storage, s.alertID, s.history); saveErr != nil {
-					fmt.Printf("⚠️  Warning: failed to save compressed history: %v\n", saveErr)
+					fmt.Printf("⚠️  警告: 圧縮した履歴の保存に失敗しました: %v\n", saveErr)
 				}
 
-				fmt.Println("✅ Conversation history compressed successfully. Retrying...")
+				fmt.Println("✅ 会話履歴を圧縮しました。リトライします...")
 				continue // Retry with compressed history
 			}
 			return nil, goerr.Wrap(err, "failed to generate content")
@@ -149,6 +167,7 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 		}
 
 		// Extract and execute function calls
+		var functionResponses []*genai.Part
 		for _, candidate := range resp.Candidates {
 			if candidate.Content == nil {
 				continue
@@ -170,6 +189,8 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 				// Execute the tool
 				funcResp, err := s.executeTool(ctx, *part.FunctionCall)
 				if err != nil {
+					// Display error to user
+					fmt.Printf("❌ ツールエラー (%s): %v\n", part.FunctionCall.Name, err)
 					// Create error response
 					funcResp = &genai.FunctionResponse{
 						Name:     part.FunctionCall.Name,
@@ -177,13 +198,18 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 					}
 				}
 
-				// Add function response to history
-				funcRespContent := &genai.Content{
-					Role:  genai.RoleUser,
-					Parts: []*genai.Part{{FunctionResponse: funcResp}},
-				}
-				s.history.Contents = append(s.history.Contents, funcRespContent)
+				// Collect function response (will be added as single Content later)
+				functionResponses = append(functionResponses, &genai.Part{FunctionResponse: funcResp})
 			}
+		}
+
+		// Add all function responses as a single Content
+		if len(functionResponses) > 0 {
+			funcRespContent := &genai.Content{
+				Role:  genai.RoleUser,
+				Parts: functionResponses,
+			}
+			s.history.Contents = append(s.history.Contents, funcRespContent)
 		}
 	}
 
@@ -214,22 +240,22 @@ func (s *Session) executeTool(ctx context.Context, funcCall genai.FunctionCall) 
 	}
 
 	// Display tool call information
-	fmt.Printf("\n🔧 Calling tool: %s\n", funcCall.Name)
+	fmt.Printf("\n🔧 ツール呼び出し: %s\n", funcCall.Name)
 	if funcCall.Args != nil {
 		argsJSON, _ := json.MarshalIndent(funcCall.Args, "   ", "  ")
-		fmt.Printf("   Args:\n%s\n", string(argsJSON))
+		fmt.Printf("   引数:\n%s\n", string(argsJSON))
 	}
 
 	// Execute the tool via registry
 	resp, err := s.registry.Execute(ctx, funcCall)
 	if err != nil {
-		fmt.Printf("❌ Tool execution failed: %v\n", err)
+		fmt.Printf("❌ ツール実行失敗: %v\n", err)
 		return nil, goerr.Wrap(err, "tool execution failed")
 	}
 
 	// Check if response contains error
 	if errMsg, ok := resp.Response["error"].(string); ok {
-		fmt.Printf("⚠️  Tool returned error:\n%s\n\n", errMsg)
+		fmt.Printf("⚠️  ツールエラー:\n%s\n\n", errMsg)
 		return resp, nil
 	}
 
@@ -239,7 +265,7 @@ func (s *Session) executeTool(ctx context.Context, funcCall genai.FunctionCall) 
 		if len(result) > 200 {
 			resultPreview = result[:200] + "..."
 		}
-		fmt.Printf("✅ Tool result:\n%s\n\n", resultPreview)
+		fmt.Printf("✅ ツール実行結果:\n%s\n\n", resultPreview)
 	} else {
 		// Display other response fields
 		respJSON, _ := json.MarshalIndent(resp.Response, "", "  ")
@@ -247,7 +273,7 @@ func (s *Session) executeTool(ctx context.Context, funcCall genai.FunctionCall) 
 		if len(resultPreview) > 200 {
 			resultPreview = resultPreview[:200] + "..."
 		}
-		fmt.Printf("✅ Tool result:\n%s\n\n", resultPreview)
+		fmt.Printf("✅ ツール実行結果:\n%s\n\n", resultPreview)
 	}
 
 	return resp, nil
@@ -279,4 +305,95 @@ func (s *Session) buildSystemPrompt(ctx context.Context) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// SendWithPlanExecute executes the plan & execute mode
+func (s *Session) SendWithPlanExecute(ctx context.Context, message string) (*PlanExecuteResult, error) {
+	// Generate title from request if this is a new history
+	if len(s.history.Contents) == 0 {
+		title, err := generateTitle(ctx, s.gemini, message)
+		if err != nil {
+			return nil, goerr.Wrap(err, "failed to generate title")
+		}
+		s.history.Title = title
+	}
+
+	// Initialize plan & execute components
+	planGen := newPlanGenerator(s.gemini, s.registry)
+	conclusionGen := newConclusionGenerator(s.gemini)
+
+	// Step 1: Generate plan
+	fmt.Printf("\n📋 計画を生成中...\n")
+	plan, err := planGen.Generate(ctx, message, s.alert)
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to generate plan")
+	}
+	displayPlan(plan)
+
+	// Step 2-4: Execute plan with reflection loop
+	results, reflections, err := executeStepsWithReflection(ctx, s.gemini, s.registry, plan)
+	if err != nil {
+		return nil, err
+	}
+
+	// Step 5: Generate conclusion
+	fmt.Printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Printf("📝 結論を生成中...\n")
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+
+	conclusion, err := conclusionGen.Generate(ctx, plan, results, reflections)
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to generate conclusion")
+	}
+
+	// Add to history
+	// User message
+	userContent := &genai.Content{
+		Role:  genai.RoleUser,
+		Parts: []*genai.Part{{Text: message}},
+	}
+	s.history.Contents = append(s.history.Contents, userContent)
+
+	// Assistant response (conclusion)
+	assistantText := fmt.Sprintf("## 完了\n\n**目的**: %s\n\n%s", plan.Objective, conclusion.Content)
+
+	assistantContent := &genai.Content{
+		Role:  genai.RoleModel,
+		Parts: []*genai.Part{{Text: assistantText}},
+	}
+	s.history.Contents = append(s.history.Contents, assistantContent)
+
+	// Save to history
+	if err := saveHistory(ctx, s.repo, s.storage, s.alertID, s.history); err != nil {
+		fmt.Printf("⚠️  警告: 履歴の保存に失敗しました: %v\n", err)
+	}
+
+	return &PlanExecuteResult{
+		Plan:        plan,
+		Results:     results,
+		Reflections: reflections,
+		Conclusion:  conclusion,
+	}, nil
+}
+
+// createResponseFromPlanExecute creates a synthetic response from plan & execute result
+func (s *Session) createResponseFromPlanExecute(result *PlanExecuteResult) *genai.GenerateContentResponse {
+	// Format conclusion as text
+	var text bytes.Buffer
+	text.WriteString("## 完了\n\n")
+	text.WriteString(fmt.Sprintf("**目的**: %s\n\n", result.Plan.Objective))
+	text.WriteString(result.Conclusion.Content)
+
+	return &genai.GenerateContentResponse{
+		Candidates: []*genai.Candidate{
+			{
+				Content: &genai.Content{
+					Role: genai.RoleModel,
+					Parts: []*genai.Part{
+						{Text: text.String()},
+					},
+				},
+			},
+		},
+	}
 }

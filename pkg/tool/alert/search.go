@@ -118,6 +118,9 @@ func (s *searchAlerts) Execute(ctx context.Context, fc genai.FunctionCall) (*gen
 		return nil, goerr.Wrap(err, "failed to convert value")
 	}
 
+	// Show progress
+	fmt.Printf("🔍 アラート検索中: %s %s %v\n", input.Field, input.Operator, input.Value)
+
 	// Search via repository
 	alerts, err := s.repo.SearchAlerts(ctx, &repository.SearchAlertsInput{
 		Field:    input.Field,
@@ -127,6 +130,7 @@ func (s *searchAlerts) Execute(ctx context.Context, fc genai.FunctionCall) (*gen
 		Offset:   input.Offset,
 	})
 	if err != nil {
+		fmt.Printf("❌ アラート検索エラー: %v\n", err)
 		return nil, goerr.Wrap(err, "failed to search alerts")
 	}
 

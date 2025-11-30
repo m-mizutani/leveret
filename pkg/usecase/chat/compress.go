@@ -110,8 +110,13 @@ func summarizeContents(ctx context.Context, gemini adapter.Gemini, contents []*g
 	contentsWithPrompt := append(contents, genai.NewContentFromText(summarizePromptRaw, genai.RoleUser))
 
 	// Create request with system instruction
+	thinkingBudget := int32(0)
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: genai.NewContentFromText("You are an assistant for security alert analysis.", ""),
+		ThinkingConfig: &genai.ThinkingConfig{
+			IncludeThoughts: false,
+			ThinkingBudget:  &thinkingBudget,
+		},
 	}
 
 	// Pass contents with prompt to Gemini API

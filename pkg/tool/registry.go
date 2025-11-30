@@ -135,6 +135,20 @@ func (r *Registry) EnabledTools() []string {
 	return tools
 }
 
+// Tools returns all enabled tools
+func (r *Registry) Tools() []Tool {
+	// Return unique tools (dedup by pointer)
+	seen := make(map[Tool]bool)
+	result := make([]Tool, 0, len(r.tools))
+	for _, t := range r.tools {
+		if !seen[t] {
+			seen[t] = true
+			result = append(result, t)
+		}
+	}
+	return result
+}
+
 // Execute runs the tool with the given function call
 func (r *Registry) Execute(ctx context.Context, fc genai.FunctionCall) (*genai.FunctionResponse, error) {
 	tool, ok := r.tools[fc.Name]

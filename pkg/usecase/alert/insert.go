@@ -100,8 +100,13 @@ func generateSummary(ctx context.Context, gemini adapter.Gemini, alertData strin
 		}
 
 		maxLen := int64(maxTitleLength)
+		thinkingBudget := int32(0)
 		config := &genai.GenerateContentConfig{
 			ResponseMIMEType: "application/json",
+			ThinkingConfig: &genai.ThinkingConfig{
+				IncludeThoughts: false,
+				ThinkingBudget:  &thinkingBudget,
+			},
 			ResponseSchema: &genai.Schema{
 				Type: genai.TypeObject,
 				Properties: map[string]*genai.Schema{

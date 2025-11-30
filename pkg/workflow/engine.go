@@ -323,8 +323,13 @@ func (e *Engine) executePrompt(ctx context.Context, prompt AgentPrompt, alert *m
 	}
 
 	// Build config with system instruction and tools
+	thinkingBudget := int32(0)
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: genai.NewContentFromText(systemInstruction, ""),
+		ThinkingConfig: &genai.ThinkingConfig{
+			IncludeThoughts: false,
+			ThinkingBudget:  &thinkingBudget,
+		},
 	}
 
 	// Add tools from registry if available
@@ -344,6 +349,8 @@ func (e *Engine) executePrompt(ctx context.Context, prompt AgentPrompt, alert *m
 
 		// Check if response contains function calls
 		hasFunctionCall := false
+		var functionResponses []*genai.Part
+
 		for _, candidate := range resp.Candidates {
 			if candidate.Content == nil {
 				continue
@@ -370,14 +377,19 @@ func (e *Engine) executePrompt(ctx context.Context, prompt AgentPrompt, alert *m
 						}
 					}
 
-					// Add function response to history
-					funcRespContent := &genai.Content{
-						Role:  genai.RoleUser,
-						Parts: []*genai.Part{{FunctionResponse: funcResp}},
-					}
-					contents = append(contents, funcRespContent)
+					// Collect function response (will be added as single Content later)
+					functionResponses = append(functionResponses, &genai.Part{FunctionResponse: funcResp})
 				}
 			}
+		}
+
+		// Add all function responses as a single Content
+		if len(functionResponses) > 0 {
+			funcRespContent := &genai.Content{
+				Role:  genai.RoleUser,
+				Parts: functionResponses,
+			}
+			contents = append(contents, funcRespContent)
 		}
 
 		// If no function call, we're done

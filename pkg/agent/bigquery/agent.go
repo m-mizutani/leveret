@@ -95,9 +95,14 @@ func (a *Agent) Execute(ctx context.Context, query string) (string, error) {
 	}
 
 	// Build config with tools
+	thinkingBudget := int32(0)
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: genai.NewContentFromText(systemPrompt, ""),
-		Tools:             []*genai.Tool{a.internalToolSpec()},
+		ThinkingConfig: &genai.ThinkingConfig{
+			IncludeThoughts: false,
+			ThinkingBudget:  &thinkingBudget,
+		},
+		Tools: []*genai.Tool{a.internalToolSpec()},
 	}
 
 	// Tool Call loop
@@ -119,19 +124,31 @@ func (a *Agent) Execute(ctx context.Context, query string) (string, error) {
 
 		// Check for function calls
 		hasFuncCall := false
+		var functionResponses []*genai.Part
+
 		for _, part := range candidate.Content.Parts {
+			// Display LLM's intermediate text (subtle format)
+			if part.Text != "" && a.output != nil {
+				fmt.Fprintf(a.output, "      💭 %s\n", part.Text)
+			}
+
 			if part.FunctionCall != nil {
 				hasFuncCall = true
 				// Execute the internal tool
 				funcResp := a.executeInternalTool(ctx, *part.FunctionCall)
 
-				// Add function response to contents
-				funcRespContent := &genai.Content{
-					Role:  genai.RoleUser,
-					Parts: []*genai.Part{{FunctionResponse: funcResp}},
-				}
-				contents = append(contents, funcRespContent)
+				// Collect function response (will be added as single Content later)
+				functionResponses = append(functionResponses, &genai.Part{FunctionResponse: funcResp})
 			}
+		}
+
+		// Add all function responses as a single Content
+		if len(functionResponses) > 0 {
+			funcRespContent := &genai.Content{
+				Role:  genai.RoleUser,
+				Parts: functionResponses,
+			}
+			contents = append(contents, funcRespContent)
 		}
 
 		// If no function call, extract final text response
@@ -295,16 +312,34 @@ func (a *Agent) handleQuery(ctx context.Context, args map[string]any) map[string
 		return map[string]any{"error": "query parameter is required"}
 	}
 
+	// Show progress
+	if a.output != nil {
+		// Show abbreviated query (first 100 chars)
+		displayQuery := queryStr
+		if len(displayQuery) > 100 {
+			displayQuery = displayQuery[:100] + "..."
+		}
+		fmt.Fprintf(a.output, "🔍 BigQuery実行中: %s\n", displayQuery)
+	}
+
 	// Dry run to check scan size
 	scanBytes, err := a.bq.DryRun(ctx, queryStr)
 	if err != nil {
-		return map[string]any{"error": fmt.Sprintf("dry run failed: %v", err)}
+		errMsg := fmt.Sprintf("dry run failed: %v", err)
+		if a.output != nil {
+			fmt.Fprintf(a.output, "❌ BigQueryエラー: %s\n", errMsg)
+		}
+		return map[string]any{"error": errMsg}
 	}
 
 	scanMB := scanBytes / (1024 * 1024)
 	if scanMB > a.scanLimitMB {
+		errMsg := fmt.Sprintf("query scan size (%d MB) exceeds limit (%d MB)", scanMB, a.scanLimitMB)
+		if a.output != nil {
+			fmt.Fprintf(a.output, "❌ BigQueryエラー: %s\n", errMsg)
+		}
 		return map[string]any{
-			"error":           fmt.Sprintf("query scan size (%d MB) exceeds limit (%d MB)", scanMB, a.scanLimitMB),
+			"error":           errMsg,
 			"scan_size_bytes": scanBytes,
 			"scan_size_mb":    scanMB,
 			"limit_mb":        a.scanLimitMB,
@@ -314,13 +349,21 @@ func (a *Agent) handleQuery(ctx context.Context, args map[string]any) map[string
 	// Execute query
 	jobID, err := a.bq.Query(ctx, queryStr)
 	if err != nil {
-		return map[string]any{"error": fmt.Sprintf("query execution failed: %v", err)}
+		errMsg := fmt.Sprintf("query execution failed: %v", err)
+		if a.output != nil {
+			fmt.Fprintf(a.output, "❌ BigQueryエラー: %s\n", errMsg)
+		}
+		return map[string]any{"error": errMsg}
 	}
 
 	// Get and store results
 	results, err := a.bq.GetQueryResult(ctx, jobID)
 	if err != nil {
-		return map[string]any{"error": fmt.Sprintf("failed to get results: %v", err)}
+		errMsg := fmt.Sprintf("failed to get results: %v", err)
+		if a.output != nil {
+			fmt.Fprintf(a.output, "❌ BigQueryエラー: %s\n", errMsg)
+		}
+		return map[string]any{"error": errMsg}
 	}
 
 	a.results[jobID] = results
@@ -406,15 +449,28 @@ func (a *Agent) handleSchema(ctx context.Context, args map[string]any) map[strin
 		return map[string]any{"error": "table parameter is required"}
 	}
 
+	// Show progress
+	if a.output != nil {
+		fmt.Fprintf(a.output, "🔍 BigQueryスキーマ取得中: %s.%s.%s\n", project, datasetID, table)
+	}
+
 	metadata, err := a.bq.GetTableMetadata(ctx, project, datasetID, table)
 	if err != nil {
-		return map[string]any{"error": fmt.Sprintf("failed to get schema: %v", err)}
+		errMsg := fmt.Sprintf("failed to get schema: %v", err)
+		if a.output != nil {
+			fmt.Fprintf(a.output, "❌ BigQueryエラー: %s\n", errMsg)
+		}
+		return map[string]any{"error": errMsg}
 	}
 
 	// Convert schema to JSON representation
 	schemaJSON, err := json.Marshal(metadata.Schema)
 	if err != nil {
-		return map[string]any{"error": fmt.Sprintf("failed to marshal schema: %v", err)}
+		errMsg := fmt.Sprintf("failed to marshal schema: %v", err)
+		if a.output != nil {
+			fmt.Fprintf(a.output, "❌ BigQueryエラー: %s\n", errMsg)
+		}
+		return map[string]any{"error": errMsg}
 	}
 
 	return map[string]any{

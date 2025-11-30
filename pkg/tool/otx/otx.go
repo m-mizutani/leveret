@@ -21,6 +21,38 @@ type queryOTXInput struct {
 	Section       string `json:"section"`
 }
 
+// getValidSections returns valid sections for a given indicator type
+func getValidSections(indicatorType string) map[string]bool {
+	switch indicatorType {
+	case "IPv4", "IPv6":
+		return map[string]bool{
+			"general": true, "reputation": true, "geo": true, "malware": true,
+			"url_list": true, "passive_dns": true, "http_scans": true,
+		}
+	case "domain", "hostname":
+		return map[string]bool{
+			"general": true, "geo": true, "malware": true,
+			"url_list": true, "passive_dns": true, "whois": true,
+		}
+	case "file":
+		return map[string]bool{
+			"general": true, "analysis": true,
+		}
+	default:
+		return map[string]bool{}
+	}
+}
+
+// getSectionsList returns a list of valid sections for a given indicator type
+func getSectionsList(indicatorType string) []string {
+	sections := getValidSections(indicatorType)
+	result := make([]string, 0, len(sections))
+	for section := range sections {
+		result = append(result, section)
+	}
+	return result
+}
+
 func (q *queryOTXInput) Validate() error {
 	// Validate indicator_type
 	validTypes := map[string]bool{
@@ -37,16 +69,13 @@ func (q *queryOTXInput) Validate() error {
 		return goerr.New("indicator is required")
 	}
 
-	// Validate section
-	validSections := map[string]bool{
-		"general": true, "reputation": true, "geo": true, "malware": true,
-		"url_list": true, "passive_dns": true, "http_scans": true,
-		"nids_list": true, "analysis": true, "whois": true,
-	}
+	// Validate section based on indicator type
+	validSections := getValidSections(q.IndicatorType)
 	if !validSections[q.Section] {
-		return goerr.New("invalid section",
+		return goerr.New("invalid section for indicator type",
 			goerr.V("section", q.Section),
-			goerr.V("valid_sections", []string{"general", "reputation", "geo", "malware", "url_list", "passive_dns", "http_scans", "nids_list", "analysis", "whois"}))
+			goerr.V("indicator_type", q.IndicatorType),
+			goerr.V("valid_sections", getSectionsList(q.IndicatorType)))
 	}
 
 	return nil
@@ -92,7 +121,7 @@ func (x *otx) Spec() *genai.Tool {
 		FunctionDeclarations: []*genai.FunctionDeclaration{
 			{
 				Name:        "query_otx",
-				Description: "Query AlienVault OTX for threat intelligence about IP addresses, domains, hostnames, or file hashes",
+				Description: "Query AlienVault OTX for threat intelligence about IP addresses, domains, hostnames, or file hashes. Available sections depend on indicator type: IPv4/IPv6 (general, reputation, geo, malware, url_list, passive_dns, http_scans), domain/hostname (general, geo, malware, url_list, passive_dns, whois), file (general, analysis)",
 				Parameters: &genai.Schema{
 					Type: genai.TypeObject,
 					Properties: map[string]*genai.Schema{
@@ -107,8 +136,7 @@ func (x *otx) Spec() *genai.Tool {
 						},
 						"section": {
 							Type:        genai.TypeString,
-							Description: "Section of data to retrieve",
-							Enum:        []string{"general", "reputation", "geo", "malware", "url_list", "passive_dns", "http_scans", "nids_list", "analysis", "whois"},
+							Description: "Section of data to retrieve. Valid sections vary by indicator_type. Use 'general' for basic info that works with all types.",
 						},
 					},
 					Required: []string{"indicator_type", "indicator", "section"},
@@ -136,9 +164,22 @@ func (x *otx) Execute(ctx context.Context, fc genai.FunctionCall) (*genai.Functi
 		return nil, goerr.Wrap(err, "validation failed")
 	}
 
+	// Show progress
+	fmt.Printf("🔍 OTX照会中: %s (%s) - %s セクション\n", input.Indicator, input.IndicatorType, input.Section)
+
 	// Query OTX API
 	result, err := x.queryAPI(ctx, input.IndicatorType, input.Indicator, input.Section)
 	if err != nil {
+		// Display detailed error information
+		fmt.Printf("❌ OTXエラー: %v\n", err)
+		if e, ok := err.(*goerr.Error); ok {
+			if status, ok := e.Values()["status"]; ok {
+				fmt.Printf("   ステータスコード: %v\n", status)
+			}
+			if body, ok := e.Values()["body"]; ok {
+				fmt.Printf("   レスポンスボディ: %v\n", body)
+			}
+		}
 		return nil, goerr.Wrap(err, "failed to query OTX API")
 	}
 

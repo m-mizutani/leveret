@@ -77,10 +77,19 @@ func New(ctx context.Context, input NewInput) (*Session, error) {
 }
 
 func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateContentResponse, error) {
+	// Generate title from first user input if this is a new history
+	if len(s.history.Contents) == 0 {
+		title, err := generateTitle(ctx, s.gemini, message)
+		if err != nil {
+			return nil, goerr.Wrap(err, "failed to generate title")
+		}
+		s.history.Title = title
+	}
+
 	// Check if plan & execute mode should be used
 	if shouldUsePlanExecuteMode(ctx, s.gemini, message, s.history.Contents) {
 		// Use plan & execute mode
-		result, err := s.SendWithPlanExecute(ctx, message)
+		result, err := s.sendWithPlanExecute(ctx, message)
 		if err != nil {
 			return nil, goerr.Wrap(err, "Plan & Execute mode failed")
 		}
@@ -90,14 +99,6 @@ func (s *Session) Send(ctx context.Context, message string) (*genai.GenerateCont
 	}
 
 	// Direct mode (existing logic)
-	// Generate title from first user input if this is a new history
-	if len(s.history.Contents) == 0 {
-		title, err := generateTitle(ctx, s.gemini, message)
-		if err != nil {
-			return nil, goerr.Wrap(err, "failed to generate title")
-		}
-		s.history.Title = title
-	}
 
 	// Build system prompt using template
 	systemPrompt, err := s.buildSystemPrompt(ctx)
@@ -307,16 +308,8 @@ func (s *Session) buildSystemPrompt(ctx context.Context) (string, error) {
 	return buf.String(), nil
 }
 
-// SendWithPlanExecute executes the plan & execute mode
-func (s *Session) SendWithPlanExecute(ctx context.Context, message string) (*PlanExecuteResult, error) {
-	// Generate title from request if this is a new history
-	if len(s.history.Contents) == 0 {
-		title, err := generateTitle(ctx, s.gemini, message)
-		if err != nil {
-			return nil, goerr.Wrap(err, "failed to generate title")
-		}
-		s.history.Title = title
-	}
+// sendWithPlanExecute executes the plan & execute mode
+func (s *Session) sendWithPlanExecute(ctx context.Context, message string) (*PlanExecuteResult, error) {
 
 	// Initialize plan & execute components
 	planGen := newPlanGenerator(s.gemini, s.registry)

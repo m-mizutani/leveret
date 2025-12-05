@@ -19,7 +19,7 @@ var planPromptRaw string
 var planPromptTmpl = template.Must(template.New("plan").Parse(planPromptRaw))
 
 // Generate creates an investigation plan from a user request
-func (p *planGenerator) Generate(ctx context.Context, request string, alert *model.Alert) (*Plan, error) {
+func (p *planGenerator) Generate(ctx context.Context, request string, alert *model.Alert, history []*genai.Content) (*Plan, error) {
 	// Get available tools
 	tools := p.registry.Tools()
 	toolDescriptions := make([]string, 0)
@@ -53,6 +53,7 @@ func (p *planGenerator) Generate(ctx context.Context, request string, alert *mod
 		"AlertAttributes":  alert.Attributes,
 		"AlertDataJSON":    string(alertDataJSON),
 		"Tools":            toolDescriptions,
+		"HasHistory":       len(history) > 0,
 	}); err != nil {
 		return nil, goerr.Wrap(err, "failed to execute plan prompt template")
 	}
@@ -106,10 +107,10 @@ func (p *planGenerator) Generate(ctx context.Context, request string, alert *mod
 		},
 	}
 
-	// Create content
-	contents := []*genai.Content{
-		genai.NewContentFromText(buf.String(), genai.RoleUser),
-	}
+	// Create content with history + new request
+	contents := make([]*genai.Content, 0, len(history)+1)
+	contents = append(contents, history...)
+	contents = append(contents, genai.NewContentFromText(buf.String(), genai.RoleUser))
 
 	// Generate plan
 	resp, err := p.gemini.GenerateContent(ctx, contents, config)

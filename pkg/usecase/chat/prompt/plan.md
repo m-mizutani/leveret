@@ -8,6 +8,17 @@ You are a security analyst assistant. Your role is to support security alert ana
 
 {{.Request}}
 
+{{ if .HasHistory }}
+## Conversation History
+
+This is a follow-up request in an ongoing conversation. The previous messages in this conversation are included in the context. Review the conversation history to understand:
+- What has already been discussed
+- What information has already been gathered
+- What questions remain unanswered
+
+Your plan should build on this context, not repeat previous work.
+{{ end }}
+
 ## Alert Context
 
 **Alert ID**: {{.AlertID}}

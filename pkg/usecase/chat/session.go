@@ -317,7 +317,7 @@ func (s *Session) sendWithPlanExecute(ctx context.Context, message string) (*Pla
 
 	// Step 1: Generate plan
 	fmt.Printf("\n📋 計画を生成中...\n")
-	plan, err := planGen.Generate(ctx, message, s.alert)
+	plan, err := planGen.Generate(ctx, message, s.alert, s.history.Contents)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to generate plan")
 	}

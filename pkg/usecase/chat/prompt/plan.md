@@ -155,10 +155,7 @@ Following the guidelines above, create an investigation plan based on the user's
 - First understand what the user wants to know
 - Design steps that enable evidence-based decisions
 - Describe expected outcomes for each step concretely
-- **Specify appropriate tools for each step** - match tool types to step objectives:
-  - Threat intelligence checks → `query_otx`
-  - Log/activity analysis → `bigquery_query`, `bigquery_schema`, `bigquery_runbook`
-  - Historical pattern search → `search_alerts`
+- **Specify appropriate tools for each step** - match tool types to step objectives (use the tools listed in the "Available Tools" section above)
 - Don't aim for perfection - Reflection allows plan adjustments if important findings emerge
 
 ## Response Format

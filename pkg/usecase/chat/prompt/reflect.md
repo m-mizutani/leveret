@@ -2,6 +2,10 @@
 
 You need to reflect on the execution of an investigation step and determine if plan adjustments are needed.
 
+## Investigation Objective
+
+**Goal**: {{.Objective}}
+
 ## Step Information
 
 **Step ID**: {{.StepID}}

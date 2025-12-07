@@ -81,8 +81,7 @@ func chatCommand() *cli.Command {
 			if err != nil {
 				return goerr.Wrap(err, "failed to initialize MCP")
 			}
-
-			// Add MCP provider to registry if available
+			// Only add if provider was initialized (config path was not empty)
 			if mcpProvider != nil {
 				registry.AddTool(mcpProvider)
 			}

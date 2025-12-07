@@ -175,21 +175,20 @@ func (r *Firestore) SearchAlerts(ctx context.Context, input *SearchAlertsInput) 
 	return alerts, nil
 }
 
-func (r *Firestore) SearchSimilarAlerts(ctx context.Context, embedding []float64, limit int) ([]*model.Alert, error) {
+func (r *Firestore) SearchSimilarAlerts(ctx context.Context, embedding []float32, threshold float64) ([]*model.Alert, error) {
 	client, err := r.getClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert []float64 to firestore.Vector32
-	vector32 := make(firestore.Vector32, len(embedding))
-	for i, v := range embedding {
-		vector32[i] = float32(v)
-	}
+	// Convert []float32 to firestore.Vector32
+	vector32 := firestore.Vector32(embedding)
 
-	// Build vector query
+	// Build vector query with distance threshold
 	query := client.Collection(alertCollection).
-		FindNearest("Embedding", vector32, limit, firestore.DistanceMeasureCosine, nil)
+		FindNearest("Embedding", vector32, 1000, firestore.DistanceMeasureCosine, &firestore.FindNearestOptions{
+			DistanceThreshold: &threshold,
+		})
 
 	// Execute query
 	iter := query.Documents(ctx)

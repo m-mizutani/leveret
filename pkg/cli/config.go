@@ -7,7 +7,6 @@ import (
 	"github.com/m-mizutani/leveret/pkg/adapter"
 	"github.com/m-mizutani/leveret/pkg/repository"
 	"github.com/m-mizutani/leveret/pkg/service/mcp"
-	"github.com/m-mizutani/leveret/pkg/tool"
 	"github.com/urfave/cli/v3"
 )
 
@@ -163,6 +162,6 @@ func mcpFlags(cfg *mcpConfig) []cli.Flag {
 }
 
 // newMCP creates MCP tool provider if configured
-func (cfg *mcpConfig) newMCP(ctx context.Context) (tool.Tool, error) {
+func (cfg *mcpConfig) newMCP(ctx context.Context) (*mcp.Provider, error) {
 	return mcp.LoadAndConnect(ctx, cfg.configPath)
 }

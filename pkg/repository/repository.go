@@ -30,7 +30,7 @@ type Repository interface {
 	SearchAlerts(ctx context.Context, input *SearchAlertsInput) ([]*model.Alert, error)
 
 	// SearchSimilarAlerts performs vector search to find similar alerts
-	SearchSimilarAlerts(ctx context.Context, embedding []float64, limit int) ([]*model.Alert, error)
+	SearchSimilarAlerts(ctx context.Context, embedding []float32, threshold float64) ([]*model.Alert, error)
 
 	// PutHistory saves a conversation history to the repository
 	PutHistory(ctx context.Context, history *model.History) error

@@ -2,10 +2,11 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"math"
 	"strings"
 
+	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/model"
 	"github.com/urfave/cli/v3"
 )
@@ -68,31 +69,21 @@ func similarCommand() *cli.Command {
 			// Get the source alert
 			sourceAlert, err := repo.GetAlert(ctx, model.AlertID(alertID))
 			if err != nil {
-				return fmt.Errorf("failed to get source alert: %w", err)
+				return goerr.Wrap(err, "failed to get source alert")
 			}
 
 			if len(sourceAlert.Embedding) == 0 {
-				return fmt.Errorf("source alert does not have an embedding vector")
+				return goerr.New("source alert does not have an embedding vector")
 			}
 
-			// Convert embedding to float64 for search
-			embedding := make([]float64, len(sourceAlert.Embedding))
-			for i, v := range sourceAlert.Embedding {
-				embedding[i] = float64(v)
-			}
-
-			// Search for similar alerts (use large limit for Firestore, filter later)
-			similarAlerts, err := repo.SearchSimilarAlerts(ctx, embedding, 100)
+			// Search for similar alerts with threshold
+			similarAlerts, err := repo.SearchSimilarAlerts(ctx, sourceAlert.Embedding, threshold)
 			if err != nil {
-				return fmt.Errorf("failed to search similar alerts: %w", err)
+				return goerr.Wrap(err, "failed to search similar alerts")
 			}
 
-			// Filter and calculate cosine distances
-			type alertWithDistance struct {
-				alert    *model.Alert
-				distance float64
-			}
-			var filtered []alertWithDistance
+			// Filter alerts
+			var filtered []*model.Alert
 
 			for _, alert := range similarAlerts {
 				// Skip the source alert itself
@@ -100,22 +91,18 @@ func similarCommand() *cli.Command {
 					continue
 				}
 
-				// Calculate cosine distance
-				distance := cosineDistance(sourceAlert.Embedding, alert.Embedding)
-
-				// Apply threshold filter
-				if distance > threshold {
-					continue
-				}
-
-				// Apply keyword filters (AND condition)
+				// Apply keyword filters (AND condition) on alert data
 				if len(filters) > 0 {
-					titleLower := strings.ToLower(alert.Title)
-					descLower := strings.ToLower(alert.Description)
+					// Marshal alert data to JSON for filtering
+					dataJSON, err := json.Marshal(alert.Data)
+					if err != nil {
+						return goerr.Wrap(err, "failed to marshal alert data", goerr.Value("alert_id", alert.ID))
+					}
+					dataStr := string(dataJSON)
+
 					allMatch := true
 					for _, filter := range filters {
-						filterLower := strings.ToLower(filter)
-						if !strings.Contains(titleLower, filterLower) && !strings.Contains(descLower, filterLower) {
+						if !strings.Contains(dataStr, filter) {
 							allMatch = false
 							break
 						}
@@ -125,10 +112,7 @@ func similarCommand() *cli.Command {
 					}
 				}
 
-				filtered = append(filtered, alertWithDistance{
-					alert:    alert,
-					distance: distance,
-				})
+				filtered = append(filtered, alert)
 			}
 
 			// Apply limit
@@ -143,11 +127,11 @@ func similarCommand() *cli.Command {
 			}
 
 			fmt.Fprintf(c.Root().Writer, "Found %d similar alerts for %s (%s):\n\n", len(filtered), sourceAlert.ID, sourceAlert.Title)
-			for i, item := range filtered {
-				fmt.Fprintf(c.Root().Writer, "%d. %s (distance: %.4f)\n", i+1, item.alert.ID, item.distance)
-				fmt.Fprintf(c.Root().Writer, "   Title: %s\n", item.alert.Title)
-				if item.alert.Description != "" {
-					fmt.Fprintf(c.Root().Writer, "   Description: %s\n", item.alert.Description)
+			for i, alert := range filtered {
+				fmt.Fprintf(c.Root().Writer, "%d. %s\n", i+1, alert.ID)
+				fmt.Fprintf(c.Root().Writer, "   Title: %s\n", alert.Title)
+				if alert.Description != "" {
+					fmt.Fprintf(c.Root().Writer, "   Description: %s\n", alert.Description)
 				}
 				fmt.Fprintf(c.Root().Writer, "\n")
 			}
@@ -157,23 +141,3 @@ func similarCommand() *cli.Command {
 	}
 }
 
-// cosineDistance calculates cosine distance between two vectors
-func cosineDistance(a, b []float32) float64 {
-	if len(a) != len(b) || len(a) == 0 {
-		return 2.0 // Maximum distance
-	}
-
-	var dotProduct, normA, normB float64
-	for i := range a {
-		dotProduct += float64(a[i]) * float64(b[i])
-		normA += float64(a[i]) * float64(a[i])
-		normB += float64(b[i]) * float64(b[i])
-	}
-
-	if normA == 0 || normB == 0 {
-		return 2.0
-	}
-
-	similarity := dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
-	return 1.0 - similarity
-}

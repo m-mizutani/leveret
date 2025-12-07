@@ -5,11 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/agent/bigquery"
-	"github.com/m-mizutani/leveret/pkg/model"
 	"github.com/m-mizutani/leveret/pkg/tool"
 	toolAlert "github.com/m-mizutani/leveret/pkg/tool/alert"
 	"github.com/m-mizutani/leveret/pkg/tool/otx"
@@ -97,8 +95,7 @@ func newCommand() *cli.Command {
 				if err != nil {
 					return goerr.Wrap(err, "failed to initialize MCP")
 				}
-
-				// Add MCP provider to registry if available
+				// Only add if provider was initialized (config path was not empty)
 				if mcpProvider != nil {
 					registry.AddTool(mcpProvider)
 				}
@@ -128,6 +125,7 @@ func newCommand() *cli.Command {
 				}
 
 				// Process workflow results
+				uc := alert.New(repo, gemini)
 				for _, result := range results {
 					fmt.Fprintf(c.Root().Writer, "Alert: %s\n", result.Alert.Title)
 
@@ -152,21 +150,16 @@ func newCommand() *cli.Command {
 						}
 					}
 
-					// Generate alert ID and save to repository
-					if result.Alert.ID == "" {
-						result.Alert.ID = model.NewAlertID()
-					}
-					if result.Alert.CreatedAt.IsZero() {
-						result.Alert.CreatedAt = time.Now()
-					}
-					if err := repo.PutAlert(ctx, result.Alert); err != nil {
-						return goerr.Wrap(err, "failed to save alert")
+					// Use Insert to save the alert (generates ID, CreatedAt, embedding, and saves to repo)
+					newAlert, err := uc.Insert(ctx, result.Alert.Data)
+					if err != nil {
+						return goerr.Wrap(err, "failed to insert alert")
 					}
 
-					fmt.Fprintf(c.Root().Writer, "  Alert ID: %s\n", result.Alert.ID)
+					fmt.Fprintf(c.Root().Writer, "  Alert ID: %s\n", newAlert.ID)
 				}
 			} else {
-				// Legacy mode: direct insert without workflow
+				// Direct insert without workflow
 				uc := alert.New(repo, gemini)
 				newAlert, err := uc.Insert(ctx, alertData)
 				if err != nil {

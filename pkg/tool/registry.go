@@ -85,8 +85,6 @@ func (r *Registry) AddTool(t Tool) {
 
 // Init initializes all tools and registers enabled tools
 func (r *Registry) Init(ctx context.Context, client *Client) error {
-	var enabledTools []string
-
 	for _, t := range r.allTools {
 		// Initialize tool and check if enabled
 		enabled, err := t.Init(ctx, client)
@@ -119,7 +117,6 @@ func (r *Registry) Init(ctx context.Context, client *Client) error {
 				continue
 			}
 			r.tools[fd.Name] = t
-			enabledTools = append(enabledTools, fd.Name)
 		}
 	}
 

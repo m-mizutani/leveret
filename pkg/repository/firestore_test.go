@@ -2,10 +2,12 @@ package repository_test
 
 import (
 	"context"
+	"math/rand"
 	"os"
 	"testing"
 	"time"
 
+	"cloud.google.com/go/firestore"
 	"github.com/m-mizutani/gt"
 	"github.com/m-mizutani/leveret/pkg/model"
 	"github.com/m-mizutani/leveret/pkg/repository"
@@ -453,4 +455,171 @@ func TestFirestoreSearchAlertsValidation(t *testing.T) {
 		})
 		gt.NoError(t, err)
 	})
+}
+
+func TestFirestoreAlertEmbedding(t *testing.T) {
+	repo := setupFirestore(t)
+	ctx := context.Background()
+
+	// Create test embedding vector
+	testEmbedding := make(firestore.Vector32, 768)
+	for i := range testEmbedding {
+		testEmbedding[i] = float32(i) / 768.0
+	}
+
+	// Put an alert with embedding
+	alert := &model.Alert{
+		ID:          model.NewAlertID(),
+		Title:       "Test Alert with Embedding",
+		Description: "This alert has an embedding vector",
+		Data:        map[string]interface{}{"key": "value"},
+		Embedding:   testEmbedding,
+		CreatedAt:   time.Now(),
+	}
+
+	err := repo.PutAlert(ctx, alert)
+	gt.NoError(t, err)
+
+	// Get the alert back
+	retrieved, err := repo.GetAlert(ctx, alert.ID)
+	gt.NoError(t, err)
+	gt.V(t, retrieved).NotNil()
+	gt.Equal(t, retrieved.ID, alert.ID)
+	gt.A(t, retrieved.Embedding).Length(768)
+
+	// Verify embedding values
+	for i := 0; i < 768; i++ {
+		if retrieved.Embedding[i] != testEmbedding[i] {
+			t.Errorf("embedding mismatch at index %d: expected %v, got %v",
+				i, testEmbedding[i], retrieved.Embedding[i])
+			break
+		}
+	}
+}
+
+func TestFirestoreSearchSimilarAlerts(t *testing.T) {
+	repo := setupFirestore(t)
+	ctx := context.Background()
+
+	// Create alerts with different embedding vectors
+	now := time.Now()
+	rng := rand.New(rand.NewSource(now.UnixNano()))
+
+	// Alert 1: embedding with random values around 0.5
+	embedding1 := make(firestore.Vector32, 768)
+	for i := range embedding1 {
+		embedding1[i] = 0.5 + float32(rng.Float64()*0.02-0.01) // 0.49-0.51
+	}
+	alert1 := &model.Alert{
+		ID:          model.NewAlertID(),
+		Title:       "Alert 1",
+		Description: "Similar to query",
+		Data:        map[string]interface{}{"type": "type_a"},
+		Embedding:   embedding1,
+		CreatedAt:   now.Add(-3 * time.Hour),
+	}
+
+	// Alert 2: embedding with random values around 0.5 (very similar to alert1)
+	embedding2 := make(firestore.Vector32, 768)
+	for i := range embedding2 {
+		embedding2[i] = 0.5 + float32(rng.Float64()*0.02-0.01) // 0.49-0.51
+	}
+	alert2 := &model.Alert{
+		ID:          model.NewAlertID(),
+		Title:       "Alert 2",
+		Description: "Also similar to query",
+		Data:        map[string]interface{}{"type": "type_a"},
+		Embedding:   embedding2,
+		CreatedAt:   now.Add(-2 * time.Hour),
+	}
+
+	// Alert 3: embedding with random values very different from alert1 and alert2
+	embedding3 := make(firestore.Vector32, 768)
+	for i := range embedding3 {
+		embedding3[i] = 0.9 + float32(rng.Float64()*0.02-0.01) // 0.89-0.91
+	}
+	alert3 := &model.Alert{
+		ID:          model.NewAlertID(),
+		Title:       "Alert 3",
+		Description: "Different from query",
+		Data:        map[string]interface{}{"type": "type_b"},
+		Embedding:   embedding3,
+		CreatedAt:   now.Add(-1 * time.Hour),
+	}
+
+	// Put all alerts
+	for _, alert := range []*model.Alert{alert1, alert2, alert3} {
+		err := repo.PutAlert(ctx, alert)
+		gt.NoError(t, err)
+	}
+
+	// Search with query embedding similar to embedding1 and embedding2
+	queryEmbedding := make([]float64, 768)
+	for i := range queryEmbedding {
+		queryEmbedding[i] = 0.5 + (rng.Float64()*0.02 - 0.01) // 0.49-0.51
+	}
+
+	results, err := repo.SearchSimilarAlerts(ctx, queryEmbedding, 3)
+	gt.NoError(t, err)
+	gt.A(t, results).Longer(0) // At least one result
+
+	// The first results should be alert1 and alert2 (most similar)
+	// Note: Exact ordering depends on Firestore's vector search implementation
+	foundAlert1 := false
+	foundAlert2 := false
+	for _, r := range results {
+		if r.ID == alert1.ID {
+			foundAlert1 = true
+		}
+		if r.ID == alert2.ID {
+			foundAlert2 = true
+		}
+	}
+
+	// At least one of the similar alerts should be in the results
+	if !foundAlert1 && !foundAlert2 {
+		t.Error("expected to find at least one similar alert in results")
+	}
+}
+
+func TestFirestoreSearchSimilarAlertsLimit(t *testing.T) {
+	repo := setupFirestore(t)
+	ctx := context.Background()
+
+	// Create multiple alerts with embeddings
+	now := time.Now()
+	rng := rand.New(rand.NewSource(now.UnixNano()))
+	for i := 0; i < 5; i++ {
+		embedding := make(firestore.Vector32, 768)
+		for j := range embedding {
+			// Add random variation to avoid identical vectors
+			base := float32(i) / 10.0
+			embedding[j] = base + float32(rng.Float64()*0.01-0.005)
+		}
+		alert := &model.Alert{
+			ID:          model.NewAlertID(),
+			Title:       "Alert " + string(rune('A'+i)),
+			Description: "Test alert",
+			Data:        map[string]interface{}{"index": i},
+			Embedding:   embedding,
+			CreatedAt:   now.Add(time.Duration(-i) * time.Hour),
+		}
+		err := repo.PutAlert(ctx, alert)
+		gt.NoError(t, err)
+	}
+
+	// Wait for indexing
+	time.Sleep(3 * time.Second)
+
+	// Search with limit=2
+	queryEmbedding := make([]float64, 768)
+	for i := range queryEmbedding {
+		queryEmbedding[i] = 0.1 + (rng.Float64()*0.02 - 0.01) // 0.09-0.11, similar to first alert
+	}
+
+	results, err := repo.SearchSimilarAlerts(ctx, queryEmbedding, 2)
+	gt.NoError(t, err)
+	if len(results) > 2 {
+		t.Errorf("expected at most 2 results, got %d", len(results))
+	}
 }

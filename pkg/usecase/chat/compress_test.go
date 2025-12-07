@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"cloud.google.com/go/firestore"
 	"github.com/m-mizutani/gt"
 	"github.com/m-mizutani/leveret/pkg/usecase/chat"
 	"google.golang.org/genai"
@@ -13,7 +14,7 @@ import (
 // mockGemini is a mock implementation of adapter.Gemini for testing
 type mockGemini struct {
 	generateFunc  func(ctx context.Context, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error)
-	embeddingFunc func(ctx context.Context, text string, dimensions int) ([]float32, error)
+	embeddingFunc func(ctx context.Context, text string, dimensions int) (firestore.Vector32, error)
 }
 
 func (m *mockGemini) GenerateContent(ctx context.Context, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
@@ -27,7 +28,7 @@ func (m *mockGemini) CreateChat(ctx context.Context, config *genai.GenerateConte
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockGemini) Embedding(ctx context.Context, text string, dimensions int) ([]float32, error) {
+func (m *mockGemini) Embedding(ctx context.Context, text string, dimensions int) (firestore.Vector32, error) {
 	if m.embeddingFunc != nil {
 		return m.embeddingFunc(ctx, text, dimensions)
 	}

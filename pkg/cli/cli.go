@@ -32,6 +32,7 @@ func Run(ctx context.Context, argv []string) *Error {
 			listCommand(),
 			showCommand(),
 			searchCommand(),
+			similarCommand(),
 			resolveCommand(),
 			mergeCommand(),
 			unmergeCommand(),

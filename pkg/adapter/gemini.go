@@ -3,6 +3,7 @@ package adapter
 import (
 	"context"
 
+	"cloud.google.com/go/firestore"
 	"github.com/m-mizutani/goerr/v2"
 	"google.golang.org/genai"
 )
@@ -10,7 +11,7 @@ import (
 type Gemini interface {
 	GenerateContent(ctx context.Context, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error)
 	CreateChat(ctx context.Context, config *genai.GenerateContentConfig, history []*genai.Content) (*genai.Chat, error)
-	Embedding(ctx context.Context, text string, dimensions int) ([]float32, error)
+	Embedding(ctx context.Context, text string, dimensions int) (firestore.Vector32, error)
 }
 
 type GeminiClient struct {
@@ -73,7 +74,7 @@ func (g *GeminiClient) CreateChat(ctx context.Context, config *genai.GenerateCon
 	return chat, nil
 }
 
-func (g *GeminiClient) Embedding(ctx context.Context, text string, dimensions int) ([]float32, error) {
+func (g *GeminiClient) Embedding(ctx context.Context, text string, dimensions int) (firestore.Vector32, error) {
 	config := &genai.EmbedContentConfig{}
 	if dimensions > 0 {
 		d := int32(dimensions)
@@ -89,5 +90,5 @@ func (g *GeminiClient) Embedding(ctx context.Context, text string, dimensions in
 		return nil, goerr.New("no embeddings returned")
 	}
 
-	return resp.Embeddings[0].Values, nil
+	return firestore.Vector32(resp.Embeddings[0].Values), nil
 }

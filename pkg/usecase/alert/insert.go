@@ -39,6 +39,13 @@ func (u *UseCase) Insert(
 	alert.Description = summary.Description
 	alert.Attributes = summary.Attributes
 
+	// Generate embedding vector from original alert data
+	embedding, err := u.gemini.Embedding(ctx, string(jsonData), 768)
+	if err != nil {
+		return nil, goerr.Wrap(err, "failed to generate embedding")
+	}
+	alert.Embedding = embedding
+
 	if err := u.repo.PutAlert(ctx, alert); err != nil {
 		return nil, err
 	}

@@ -77,7 +77,7 @@ func TestBigQuery(t *testing.T) {
 			t.Logf("Range partitioning field: %s", metadata.RangePartitioning.Field)
 		}
 
-		if len(metadata.Clustering.Fields) > 0 {
+		if metadata.Clustering != nil && len(metadata.Clustering.Fields) > 0 {
 			t.Logf("Clustering fields: %v", metadata.Clustering.Fields)
 		}
 	})

@@ -176,8 +176,43 @@ func (r *Firestore) SearchAlerts(ctx context.Context, input *SearchAlertsInput) 
 }
 
 func (r *Firestore) SearchSimilarAlerts(ctx context.Context, embedding []float64, limit int) ([]*model.Alert, error) {
-	// TODO: Implement Firestore vector search
-	return nil, nil
+	client, err := r.getClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert []float64 to firestore.Vector32
+	vector32 := make(firestore.Vector32, len(embedding))
+	for i, v := range embedding {
+		vector32[i] = float32(v)
+	}
+
+	// Build vector query
+	query := client.Collection(alertCollection).
+		FindNearest("Embedding", vector32, limit, firestore.DistanceMeasureCosine, nil)
+
+	// Execute query
+	iter := query.Documents(ctx)
+	defer iter.Stop()
+
+	var alerts []*model.Alert
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, goerr.Wrap(err, "failed to iterate similar alerts")
+		}
+
+		var alert model.Alert
+		if err := doc.DataTo(&alert); err != nil {
+			return nil, goerr.Wrap(err, "failed to parse alert data", goerr.Value("id", doc.Ref.ID))
+		}
+		alerts = append(alerts, &alert)
+	}
+
+	return alerts, nil
 }
 
 func (r *Firestore) PutHistory(ctx context.Context, history *model.History) error {

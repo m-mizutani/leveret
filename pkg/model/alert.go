@@ -3,6 +3,7 @@ package model
 import (
 	"time"
 
+	"cloud.google.com/go/firestore"
 	"github.com/google/uuid"
 	"github.com/m-mizutani/goerr/v2"
 )
@@ -53,6 +54,7 @@ type Alert struct {
 	Description string
 	Data        any
 	Attributes  []*Attribute
+	Embedding   firestore.Vector32
 
 	CreatedAt  time.Time
 	ResolvedAt *time.Time

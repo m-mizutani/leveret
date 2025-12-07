@@ -10,7 +10,7 @@ import (
 type Gemini interface {
 	GenerateContent(ctx context.Context, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error)
 	CreateChat(ctx context.Context, config *genai.GenerateContentConfig, history []*genai.Content) (*genai.Chat, error)
-	Embedding(ctx context.Context, text string) (*genai.EmbedContentResponse, error)
+	Embedding(ctx context.Context, text string, dimensions int) ([]float32, error)
 }
 
 type GeminiClient struct {
@@ -73,11 +73,21 @@ func (g *GeminiClient) CreateChat(ctx context.Context, config *genai.GenerateCon
 	return chat, nil
 }
 
-func (g *GeminiClient) Embedding(ctx context.Context, text string) (*genai.EmbedContentResponse, error) {
-	resp, err := g.client.Models.EmbedContent(ctx, g.embeddingModel, genai.Text(text), &genai.EmbedContentConfig{})
+func (g *GeminiClient) Embedding(ctx context.Context, text string, dimensions int) ([]float32, error) {
+	config := &genai.EmbedContentConfig{}
+	if dimensions > 0 {
+		d := int32(dimensions)
+		config.OutputDimensionality = &d
+	}
+
+	resp, err := g.client.Models.EmbedContent(ctx, g.embeddingModel, genai.Text(text), config)
 	if err != nil {
 		return nil, goerr.Wrap(err, "failed to embed content")
 	}
 
-	return resp, nil
+	if len(resp.Embeddings) == 0 {
+		return nil, goerr.New("no embeddings returned")
+	}
+
+	return resp.Embeddings[0].Values, nil
 }

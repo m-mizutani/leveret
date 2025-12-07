@@ -12,8 +12,8 @@ import (
 
 // mockGemini is a mock implementation of adapter.Gemini for testing
 type mockGemini struct {
-	generateFunc func(ctx context.Context, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error)
-	embeddingFunc func(ctx context.Context, text string) (*genai.EmbedContentResponse, error)
+	generateFunc  func(ctx context.Context, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error)
+	embeddingFunc func(ctx context.Context, text string, dimensions int) ([]float32, error)
 }
 
 func (m *mockGemini) GenerateContent(ctx context.Context, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
@@ -27,9 +27,9 @@ func (m *mockGemini) CreateChat(ctx context.Context, config *genai.GenerateConte
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockGemini) Embedding(ctx context.Context, text string) (*genai.EmbedContentResponse, error) {
+func (m *mockGemini) Embedding(ctx context.Context, text string, dimensions int) ([]float32, error) {
 	if m.embeddingFunc != nil {
-		return m.embeddingFunc(ctx, text)
+		return m.embeddingFunc(ctx, text, dimensions)
 	}
 	return nil, errors.New("not implemented")
 }

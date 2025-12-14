@@ -119,6 +119,7 @@ func (t *Tool) Init(ctx context.Context, client *tool.Client) (bool, error) {
 		WithScanLimitMB(t.scanLimitMB),
 		WithResultLimitRows(t.resultLimitRows),
 		WithOutput(t.output),
+		WithRepository(client.Repo),
 	)
 
 	t.enabled = true

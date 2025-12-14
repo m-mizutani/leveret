@@ -9,9 +9,12 @@ import (
 	"io"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/m-mizutani/goerr/v2"
 	"github.com/m-mizutani/leveret/pkg/adapter"
+	"github.com/m-mizutani/leveret/pkg/model"
+	"github.com/m-mizutani/leveret/pkg/repository"
 	"google.golang.org/genai"
 )
 
@@ -22,12 +25,16 @@ var systemPromptRaw string
 type Agent struct {
 	gemini          adapter.Gemini
 	bq              adapter.BigQuery
+	repo            repository.Repository
 	runBooks        map[string]*runBook
 	tables          []tableInfo
 	scanLimitMB     int64
 	resultLimitRows int64
 	results         map[string][]map[string]any
 	output          io.Writer
+
+	// Session tracking for introspection
+	sessionHistory []*genai.Content
 }
 
 // NewAgent creates a new BigQuery agent
@@ -84,10 +91,51 @@ func WithOutput(w io.Writer) AgentOption {
 	}
 }
 
+// WithRepository sets the repository for memory storage
+func WithRepository(repo repository.Repository) AgentOption {
+	return func(a *Agent) {
+		a.repo = repo
+	}
+}
+
 // Execute processes a natural language query and returns the result
 func (a *Agent) Execute(ctx context.Context, query string) (string, error) {
-	// Build system prompt with context
-	systemPrompt := a.buildSystemPrompt()
+	// Reset session tracking
+	a.sessionHistory = []*genai.Content{}
+
+	// (1) Retrieve similar memories if repository is available
+	var providedMemories []*model.Memory
+	if a.repo != nil {
+		// Generate embedding for the query
+		embedding, err := a.gemini.Embedding(ctx, query, 768)
+		if err != nil {
+			if a.output != nil {
+				fmt.Fprintf(a.output, "⚠️  Failed to generate embedding for memory search: %v\n", err)
+			}
+		} else {
+			// Search for similar memories (cosine distance threshold 0.8, limit 32)
+			memories, err := a.repo.SearchMemories(ctx, embedding, 0.8, 32)
+			if err != nil {
+				if a.output != nil {
+					fmt.Fprintf(a.output, "⚠️  Failed to search memories: %v\n", err)
+				}
+			} else {
+				if a.output != nil {
+					fmt.Fprintf(a.output, "🔍 Memory search completed: found %d memories (threshold: 0.8)\n", len(memories))
+				}
+				if len(memories) > 0 {
+					providedMemories = memories
+				}
+			}
+		}
+	} else {
+		if a.output != nil {
+			fmt.Fprintf(a.output, "ℹ️  Repository not available, skipping memory search\n")
+		}
+	}
+
+	// Build system prompt with context and memories
+	systemPrompt := a.buildSystemPrompt(providedMemories)
 
 	// Create initial user message
 	contents := []*genai.Content{
@@ -164,15 +212,29 @@ func (a *Agent) Execute(ctx context.Context, query string) (string, error) {
 		}
 	}
 
+	// Store session history for introspection
+	a.sessionHistory = contents
+
+	// (2) Introspection phase (after execution)
+	if a.repo != nil {
+		if err := a.runIntrospection(ctx, query, providedMemories, a.sessionHistory); err != nil {
+			if a.output != nil {
+				fmt.Fprintf(a.output, "⚠️  Introspection failed: %v\n", err)
+			}
+			// Don't fail the whole execution if introspection fails
+		}
+	}
+
 	return finalResponse, nil
 }
 
 type systemPromptData struct {
 	RunBooks []runBook
 	Tables   []tableInfo
+	Memories []*model.Memory
 }
 
-func (a *Agent) buildSystemPrompt() string {
+func (a *Agent) buildSystemPrompt(memories []*model.Memory) string {
 	tmpl, err := template.New("system").Parse(systemPromptRaw)
 	if err != nil {
 		// Fallback to raw template if parsing fails
@@ -188,12 +250,22 @@ func (a *Agent) buildSystemPrompt() string {
 	data := systemPromptData{
 		RunBooks: runBookList,
 		Tables:   a.tables,
+		Memories: memories,
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		// Fallback to raw template if execution fails
 		return systemPromptRaw
+	}
+
+	// Append memories section if available
+	if len(memories) > 0 {
+		buf.WriteString("\n\n## Past Knowledge (Memories)\n\n")
+		buf.WriteString("The following knowledge was learned from past sessions. Use this information to inform your analysis:\n\n")
+		for _, mem := range memories {
+			buf.WriteString(fmt.Sprintf("- **Memory ID**: %s\n  **Content**: %s\n\n", mem.ID, mem.Claim))
+		}
 	}
 
 	return buf.String()
@@ -495,4 +567,103 @@ func (a *Agent) handleRunbook(ctx context.Context, args map[string]any) map[stri
 		"description": rb.Description,
 		"query":       rb.Query,
 	}
+}
+
+// runIntrospection performs introspection after execution and updates memories
+func (a *Agent) runIntrospection(ctx context.Context, queryText string, providedMemories []*model.Memory, sessionHistory []*genai.Content) error {
+	// Run introspection using session history
+	if a.output != nil {
+		fmt.Fprintf(a.output, "[BigQuery Agent] 🤔 振り返り中...\n")
+	}
+	result, err := introspect(ctx, a.gemini, queryText, providedMemories, sessionHistory)
+	if err != nil {
+		return goerr.Wrap(err, "introspection failed")
+	}
+
+	// Generate embedding for the query (reuse from earlier or regenerate)
+	embedding, err := a.gemini.Embedding(ctx, queryText, 768)
+	if err != nil {
+		return goerr.Wrap(err, "failed to generate embedding for claims")
+	}
+
+	// Build output buffer
+	var outputBuf strings.Builder
+
+	// Save new claims as memories
+	if len(result.Claims) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("\n[BigQuery Agent] 💡 新たな知見を抽出 (%d件):\n", len(result.Claims)))
+
+		for _, claim := range result.Claims {
+			memory := &model.Memory{
+				ID:        model.NewMemoryID(),
+				Claim:     claim.Content,
+				QueryText: queryText,
+				Embedding: embedding,
+				Score:     0.0,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+
+			if err := a.repo.PutMemory(ctx, memory); err != nil {
+				outputBuf.WriteString(fmt.Sprintf("  ⚠️  Failed to save memory %s: %v\n", memory.ID, err))
+				continue
+			}
+
+			outputBuf.WriteString(fmt.Sprintf("  - [%s] %s\n", memory.ID, claim.Content))
+		}
+	}
+
+	// Update scores for helpful memories
+	if len(result.HelpfulMemoryIDs) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("\n[BigQuery Agent] 👍 役に立った記憶 (%d件):\n", len(result.HelpfulMemoryIDs)))
+		for _, memID := range result.HelpfulMemoryIDs {
+			if err := a.repo.UpdateMemoryScore(ctx, model.MemoryID(memID), 1.0); err != nil {
+				outputBuf.WriteString(fmt.Sprintf("  ⚠️  Failed to update score for memory %s: %v\n", memID, err))
+				continue
+			}
+			// Find the memory content to display
+			var memContent string
+			for _, mem := range providedMemories {
+				if mem.ID == model.MemoryID(memID) {
+					memContent = mem.Claim
+					break
+				}
+			}
+			outputBuf.WriteString(fmt.Sprintf("  - [%s] %s (スコア +1.0)\n", memID, memContent))
+		}
+	}
+
+	// Update scores for harmful memories (those that were incorrect and caused errors)
+	if len(result.HarmfulMemoryIDs) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("\n[BigQuery Agent] 👎 有害だった記憶 (%d件):\n", len(result.HarmfulMemoryIDs)))
+		for _, memID := range result.HarmfulMemoryIDs {
+			if err := a.repo.UpdateMemoryScore(ctx, model.MemoryID(memID), -1.0); err != nil {
+				outputBuf.WriteString(fmt.Sprintf("  ⚠️  Failed to update score for harmful memory %s: %v\n", memID, err))
+				continue
+			}
+			// Find the memory content to display
+			var memContent string
+			for _, mem := range providedMemories {
+				if mem.ID == model.MemoryID(memID) {
+					memContent = mem.Claim
+					break
+				}
+			}
+			outputBuf.WriteString(fmt.Sprintf("  - [%s] %s (スコア -1.0)\n", memID, memContent))
+		}
+	}
+
+	// Output all at once
+	if a.output != nil && outputBuf.Len() > 0 {
+		fmt.Fprint(a.output, outputBuf.String())
+	}
+
+	// Delete memories below threshold (-3.0)
+	if err := a.repo.DeleteMemoriesBelowScore(ctx, -3.0); err != nil {
+		if a.output != nil {
+			fmt.Fprintf(a.output, "⚠️  Failed to delete low-score memories: %v\n", err)
+		}
+	}
+
+	return nil
 }

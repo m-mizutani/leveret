@@ -632,3 +632,218 @@ func TestFirestoreSearchSimilarAlertsLimit(t *testing.T) {
 	// Note: With threshold filtering, we may get fewer than expected results
 	// Just verify we don't get an error
 }
+
+func TestFirestorePutMemory(t *testing.T) {
+	repo := setupFirestore(t)
+	ctx := context.Background()
+
+	// Create test embedding vector
+	testEmbedding := make(firestore.Vector32, 768)
+	for i := range testEmbedding {
+		testEmbedding[i] = float32(i) / 768.0
+	}
+
+	memory := &model.Memory{
+		ID:        model.NewMemoryID(),
+		Claim:     "テストテーブルはproject.dataset.tableに格納されている",
+		QueryText: "テストクエリ",
+		Embedding: testEmbedding,
+		Score:     0.0,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	err := repo.PutMemory(ctx, memory)
+	gt.NoError(t, err)
+
+	// Get the memory back
+	retrieved, err := repo.GetMemory(ctx, memory.ID)
+	gt.NoError(t, err)
+	gt.V(t, retrieved).NotNil()
+	gt.Equal(t, retrieved.ID, memory.ID)
+	gt.Equal(t, retrieved.Claim, memory.Claim)
+	gt.Equal(t, retrieved.QueryText, memory.QueryText)
+	gt.Equal(t, retrieved.Score, 0.0)
+	gt.A(t, retrieved.Embedding).Length(768)
+
+	// Verify embedding values
+	for i := 0; i < 768; i++ {
+		if retrieved.Embedding[i] != testEmbedding[i] {
+			t.Errorf("embedding mismatch at index %d: expected %v, got %v",
+				i, testEmbedding[i], retrieved.Embedding[i])
+			break
+		}
+	}
+}
+
+func TestFirestoreSearchMemories(t *testing.T) {
+	repo := setupFirestore(t)
+	ctx := context.Background()
+
+	// Create memories with different embedding vectors
+	now := time.Now()
+	rng := rand.New(rand.NewSource(now.UnixNano()))
+
+	// Memory 1: embedding with random values
+	embedding1 := make(firestore.Vector32, 768)
+	for i := range embedding1 {
+		embedding1[i] = float32(0.01 + rng.Float64()*0.2)
+	}
+	memory1 := &model.Memory{
+		ID:        model.NewMemoryID(),
+		Claim:     "監査ログはproject.logs.auditに格納されている",
+		QueryText: "監査ログの場所",
+		Embedding: embedding1,
+		Score:     5.0,
+		CreatedAt: now.Add(-3 * time.Hour),
+		UpdatedAt: now.Add(-3 * time.Hour),
+	}
+
+	// Memory 2: similar embedding
+	embedding2 := make(firestore.Vector32, 768)
+	for i := range embedding2 {
+		embedding2[i] = float32(0.01 + rng.Float64()*0.2)
+	}
+	memory2 := &model.Memory{
+		ID:        model.NewMemoryID(),
+		Claim:     "アクセスログはproject.logs.accessに格納されている",
+		QueryText: "アクセスログの場所",
+		Embedding: embedding2,
+		Score:     3.0,
+		CreatedAt: now.Add(-2 * time.Hour),
+		UpdatedAt: now.Add(-2 * time.Hour),
+	}
+
+	// Memory 3: different embedding
+	embedding3 := make(firestore.Vector32, 768)
+	for i := range embedding3 {
+		embedding3[i] = float32(0.5 + rng.Float64()*0.2)
+	}
+	memory3 := &model.Memory{
+		ID:        model.NewMemoryID(),
+		Claim:     "エラーログはproject.logs.errorに格納されている",
+		QueryText: "エラーログの場所",
+		Embedding: embedding3,
+		Score:     1.0,
+		CreatedAt: now.Add(-1 * time.Hour),
+		UpdatedAt: now.Add(-1 * time.Hour),
+	}
+
+	// Put all memories
+	for _, memory := range []*model.Memory{memory1, memory2, memory3} {
+		err := repo.PutMemory(ctx, memory)
+		gt.NoError(t, err)
+	}
+
+	// Wait for vector indexing
+	t.Logf("Waiting for vector indexing...")
+	time.Sleep(5 * time.Second)
+
+	// Search with query embedding similar to embedding1 and embedding2
+	queryEmbedding := make(firestore.Vector32, 768)
+	for i := range queryEmbedding {
+		queryEmbedding[i] = float32(0.01 + rng.Float64()*0.2)
+	}
+
+	results, err := repo.SearchMemories(ctx, queryEmbedding, 0.0, 10)
+	gt.NoError(t, err)
+	t.Logf("Search returned %d memories", len(results))
+
+	for _, r := range results {
+		t.Logf("  - [%s] %s (score: %.2f)", r.ID, r.Claim, r.Score)
+	}
+
+	gt.A(t, results).Longer(0) // At least one result
+}
+
+func TestFirestoreUpdateMemoryScore(t *testing.T) {
+	repo := setupFirestore(t)
+	ctx := context.Background()
+
+	// Create test embedding
+	testEmbedding := make(firestore.Vector32, 768)
+	for i := range testEmbedding {
+		testEmbedding[i] = float32(i) / 768.0
+	}
+
+	memory := &model.Memory{
+		ID:        model.NewMemoryID(),
+		Claim:     "テスト記憶",
+		QueryText: "テストクエリ",
+		Embedding: testEmbedding,
+		Score:     0.0,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	err := repo.PutMemory(ctx, memory)
+	gt.NoError(t, err)
+
+	// Update score +1.0
+	err = repo.UpdateMemoryScore(ctx, memory.ID, 1.0)
+	gt.NoError(t, err)
+
+	// Verify score updated
+	retrieved, err := repo.GetMemory(ctx, memory.ID)
+	gt.NoError(t, err)
+	gt.Equal(t, retrieved.Score, 1.0)
+
+	// Update score -2.0
+	err = repo.UpdateMemoryScore(ctx, memory.ID, -2.0)
+	gt.NoError(t, err)
+
+	// Verify score updated again
+	retrieved, err = repo.GetMemory(ctx, memory.ID)
+	gt.NoError(t, err)
+	gt.Equal(t, retrieved.Score, -1.0)
+}
+
+func TestFirestoreDeleteMemoriesBelowScore(t *testing.T) {
+	repo := setupFirestore(t)
+	ctx := context.Background()
+
+	// Create test embedding
+	testEmbedding := make(firestore.Vector32, 768)
+	for i := range testEmbedding {
+		testEmbedding[i] = float32(i) / 768.0
+	}
+
+	// Create memories with different scores
+	memory1 := &model.Memory{
+		ID:        model.NewMemoryID(),
+		Claim:     "良い記憶",
+		QueryText: "テストクエリ",
+		Embedding: testEmbedding,
+		Score:     5.0,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	memory2 := &model.Memory{
+		ID:        model.NewMemoryID(),
+		Claim:     "悪い記憶",
+		QueryText: "テストクエリ",
+		Embedding: testEmbedding,
+		Score:     -5.0,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	err := repo.PutMemory(ctx, memory1)
+	gt.NoError(t, err)
+	err = repo.PutMemory(ctx, memory2)
+	gt.NoError(t, err)
+
+	// Delete memories below -3.0
+	err = repo.DeleteMemoriesBelowScore(ctx, -3.0)
+	gt.NoError(t, err)
+
+	// Verify memory1 still exists
+	retrieved1, err := repo.GetMemory(ctx, memory1.ID)
+	gt.NoError(t, err)
+	gt.V(t, retrieved1).NotNil()
+
+	// Verify memory2 is deleted
+	_, err = repo.GetMemory(ctx, memory2.ID)
+	gt.Error(t, err)
+}

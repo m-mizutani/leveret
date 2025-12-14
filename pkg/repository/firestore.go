@@ -15,6 +15,7 @@ import (
 const (
 	alertCollection   = "alerts"
 	historyCollection = "histories"
+	memoryCollection  = "memories"
 )
 
 // Firestore implements Repository interface using Firestore
@@ -319,4 +320,158 @@ func (r *Firestore) ListHistoryByAlert(ctx context.Context, alertID model.AlertI
 	})
 
 	return histories, nil
+}
+
+func (r *Firestore) PutMemory(ctx context.Context, memory *model.Memory) error {
+	client, err := r.getClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.Collection(memoryCollection).Doc(string(memory.ID)).Set(ctx, memory)
+	if err != nil {
+		return goerr.Wrap(err, "failed to put memory", goerr.V("id", memory.ID))
+	}
+
+	return nil
+}
+
+func (r *Firestore) GetMemory(ctx context.Context, id model.MemoryID) (*model.Memory, error) {
+	client, err := r.getClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	doc, err := client.Collection(memoryCollection).Doc(string(id)).Get(ctx)
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return nil, goerr.Wrap(err, "memory not found", goerr.V("id", id))
+		}
+		return nil, goerr.Wrap(err, "failed to get memory", goerr.V("id", id))
+	}
+
+	var memory model.Memory
+	if err := doc.DataTo(&memory); err != nil {
+		return nil, goerr.Wrap(err, "failed to parse memory data", goerr.V("id", id))
+	}
+
+	return &memory, nil
+}
+
+func (r *Firestore) SearchMemories(ctx context.Context, embedding firestore.Vector32, threshold float64, limit int) ([]*model.Memory, error) {
+	client, err := r.getClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build vector query with distance threshold
+	query := client.Collection(memoryCollection).
+		FindNearest("Embedding", embedding, limit, firestore.DistanceMeasureCosine, &firestore.FindNearestOptions{
+			DistanceThreshold: &threshold,
+		})
+
+	// Execute query
+	iter := query.Documents(ctx)
+	defer iter.Stop()
+
+	var memories []*model.Memory
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, goerr.Wrap(err, "failed to iterate similar memories")
+		}
+
+		var memory model.Memory
+		if err := doc.DataTo(&memory); err != nil {
+			return nil, goerr.Wrap(err, "failed to parse memory data", goerr.V("id", doc.Ref.ID))
+		}
+		memories = append(memories, &memory)
+	}
+
+	return memories, nil
+}
+
+func (r *Firestore) UpdateMemoryScore(ctx context.Context, id model.MemoryID, delta float64) error {
+	client, err := r.getClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	docRef := client.Collection(memoryCollection).Doc(string(id))
+
+	// Use transaction to atomically update score
+	err = client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		doc, err := tx.Get(docRef)
+		if err != nil {
+			if status.Code(err) == codes.NotFound {
+				return goerr.Wrap(err, "memory not found", goerr.V("id", id))
+			}
+			return goerr.Wrap(err, "failed to get memory in transaction", goerr.V("id", id))
+		}
+
+		var memory model.Memory
+		if err := doc.DataTo(&memory); err != nil {
+			return goerr.Wrap(err, "failed to parse memory data", goerr.V("id", id))
+		}
+
+		// Update score and timestamp
+		newScore := memory.Score + delta
+
+		// Use Update instead of Set to update specific fields
+		updates := []firestore.Update{
+			{Path: "score", Value: newScore},
+			{Path: "updated_at", Value: firestore.ServerTimestamp},
+		}
+
+		return tx.Update(docRef, updates)
+	})
+
+	if err != nil {
+		return goerr.Wrap(err, "failed to update memory score", goerr.V("id", id), goerr.V("delta", delta))
+	}
+
+	return nil
+}
+
+func (r *Firestore) DeleteMemoriesBelowScore(ctx context.Context, threshold float64) error {
+	client, err := r.getClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Query for memories with score below threshold
+	iter := client.Collection(memoryCollection).
+		Where("score", "<", threshold).
+		Documents(ctx)
+	defer iter.Stop()
+
+	// Collect document references to delete
+	var docsToDelete []*firestore.DocumentRef
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return goerr.Wrap(err, "failed to iterate memories to delete")
+		}
+		docsToDelete = append(docsToDelete, doc.Ref)
+	}
+
+	// Delete in batch
+	if len(docsToDelete) > 0 {
+		batch := client.Batch()
+		for _, docRef := range docsToDelete {
+			batch.Delete(docRef)
+		}
+
+		if _, err := batch.Commit(ctx); err != nil {
+			return goerr.Wrap(err, "failed to delete memories", goerr.V("count", len(docsToDelete)), goerr.V("threshold", threshold))
+		}
+	}
+
+	return nil
 }

@@ -166,7 +166,7 @@ func TestAgent_BuildSystemPrompt(t *testing.T) {
 	}
 
 	agent := NewAgent(nil, nil, WithRunBooks(runBooks), WithTables(tables))
-	prompt := agent.buildSystemPrompt()
+	prompt := agent.buildSystemPrompt(nil)
 
 	gt.S(t, prompt).Contains("Available RunBooks")
 	gt.S(t, prompt).Contains("test")

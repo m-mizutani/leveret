@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	"cloud.google.com/go/firestore"
 	"github.com/m-mizutani/leveret/pkg/model"
 )
 
@@ -43,4 +44,19 @@ type Repository interface {
 
 	// ListHistoryByAlert retrieves conversation histories for a specific alert
 	ListHistoryByAlert(ctx context.Context, alertID model.AlertID) ([]*model.History, error)
+
+	// PutMemory saves a memory to the repository
+	PutMemory(ctx context.Context, memory *model.Memory) error
+
+	// GetMemory retrieves a memory by ID
+	GetMemory(ctx context.Context, id model.MemoryID) (*model.Memory, error)
+
+	// SearchMemories performs vector search for similar memories
+	SearchMemories(ctx context.Context, embedding firestore.Vector32, threshold float64, limit int) ([]*model.Memory, error)
+
+	// UpdateMemoryScore updates the score of a memory
+	UpdateMemoryScore(ctx context.Context, id model.MemoryID, delta float64) error
+
+	// DeleteMemoriesBelowScore deletes memories with score below threshold
+	DeleteMemoriesBelowScore(ctx context.Context, threshold float64) error
 }

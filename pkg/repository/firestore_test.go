@@ -561,10 +561,10 @@ func TestFirestoreSearchSimilarAlerts(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	// Search with query embedding similar to embedding1 and embedding2
-	queryEmbedding := make([]float64, 768)
+	queryEmbedding := make([]float32, 768)
 	for i := range queryEmbedding {
 		// Use range [0.01, 0.21] similar to alert1/alert2
-		queryEmbedding[i] = 0.01 + rng.Float64()*0.2
+		queryEmbedding[i] = float32(0.01 + rng.Float64()*0.2)
 	}
 
 	results, err := repo.SearchSimilarAlerts(ctx, queryEmbedding, 2.0) // Maximum threshold
@@ -621,10 +621,10 @@ func TestFirestoreSearchSimilarAlertsLimit(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	// Search with threshold
-	queryEmbedding := make([]float64, 768)
+	queryEmbedding := make([]float32, 768)
 	for i := range queryEmbedding {
 		// Use range [0.1, 0.2] similar to first alert
-		queryEmbedding[i] = 0.1 + rng.Float64()*0.1
+		queryEmbedding[i] = float32(0.1 + rng.Float64()*0.1)
 	}
 
 	_, err := repo.SearchSimilarAlerts(ctx, queryEmbedding, 0.05) // Very low threshold to limit results

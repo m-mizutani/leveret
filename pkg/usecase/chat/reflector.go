@@ -94,12 +94,8 @@ func reflect(ctx context.Context, gemini adapter.Gemini, registry *tool.Registry
 							},
 							"step": {
 								Type:        genai.TypeObject,
-								Description: "Step information (for add_step/update_step)",
+								Description: "Step information (for add_step only - ID auto-generated)",
 								Properties: map[string]*genai.Schema{
-									"id": {
-										Type:        genai.TypeString,
-										Description: "Step ID",
-									},
 									"description": {
 										Type:        genai.TypeString,
 										Description: "Step description",
@@ -116,15 +112,15 @@ func reflect(ctx context.Context, gemini adapter.Gemini, registry *tool.Registry
 										Description: "Expected outcome",
 									},
 								},
-								Required: []string{"id", "description", "tools", "expected"},
+								Required: []string{"description", "tools", "expected"},
 							},
 							"step_id": {
 								Type:        genai.TypeString,
-								Description: "Step ID to cancel (for cancel_step)",
+								Description: "Step ID to update or cancel (for update_step/cancel_step)",
 							},
 							"reason": {
 								Type:        genai.TypeString,
-								Description: "Reason for cancellation (for cancel_step)",
+								Description: "Reason for update or cancellation",
 							},
 						},
 						Required: []string{"type"},
@@ -159,7 +155,6 @@ func reflect(ctx context.Context, gemini adapter.Gemini, registry *tool.Registry
 		PlanUpdates []struct {
 			Type   string `json:"type"`
 			Step   *struct {
-				ID          string   `json:"id"`
 				Description string   `json:"description"`
 				Tools       []string `json:"tools"`
 				Expected    string   `json:"expected"`
@@ -194,11 +189,11 @@ func reflect(ctx context.Context, gemini adapter.Gemini, registry *tool.Registry
 
 		if updateData.Step != nil {
 			update.Step = Step{
-				ID:          updateData.Step.ID,
 				Description: updateData.Step.Description,
 				Tools:       updateData.Step.Tools,
 				Expected:    updateData.Step.Expected,
 				Status:      StepStatusPending,
+				// ID will be auto-generated in applyUpdates
 			}
 		}
 
@@ -213,21 +208,24 @@ func applyUpdates(plan *Plan, reflection *Reflection) error {
 	for _, update := range reflection.PlanUpdates {
 		switch update.Type {
 		case UpdateTypeAddStep:
+			// Auto-generate step ID
+			update.Step.ID = generateStepID(plan)
 			// Add step to the end
 			plan.Steps = append(plan.Steps, update.Step)
 
 		case UpdateTypeUpdateStep:
-			// Find and replace step
+			// Find and replace step (keep original ID)
 			found := false
 			for i, step := range plan.Steps {
-				if step.ID == update.Step.ID {
+				if step.ID == update.StepID {
+					update.Step.ID = step.ID // Keep original ID
 					plan.Steps[i] = update.Step
 					found = true
 					break
 				}
 			}
 			if !found {
-				return goerr.New("target step not found for update_step", goerr.Value("step_id", update.Step.ID))
+				return goerr.New("target step not found for update_step", goerr.Value("step_id", update.StepID))
 			}
 
 		case UpdateTypeCancelStep:
@@ -241,10 +239,25 @@ func applyUpdates(plan *Plan, reflection *Reflection) error {
 				}
 			}
 			if !found {
-				return goerr.New("target step not found for cancel_step", goerr.Value("step_id", update.StepID))
+				// Log warning but don't fail - LLM might reference non-existent steps
+				fmt.Printf("⚠️  警告: キャンセル対象のステップが見つかりません (step_id: %s)\n", update.StepID)
 			}
 		}
 	}
 
 	return nil
+}
+
+// generateStepID generates a new unique step ID for the plan
+func generateStepID(plan *Plan) string {
+	maxNum := 0
+	for _, step := range plan.Steps {
+		var num int
+		if _, err := fmt.Sscanf(step.ID, "step_%d", &num); err == nil {
+			if num > maxNum {
+				maxNum = num
+			}
+		}
+	}
+	return fmt.Sprintf("step_%d", maxNum+1)
 }

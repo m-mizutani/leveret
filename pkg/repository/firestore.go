@@ -422,8 +422,8 @@ func (r *Firestore) UpdateMemoryScore(ctx context.Context, id model.MemoryID, de
 
 		// Use Update instead of Set to update specific fields
 		updates := []firestore.Update{
-			{Path: "score", Value: newScore},
-			{Path: "updated_at", Value: firestore.ServerTimestamp},
+			{Path: "Score", Value: newScore},
+			{Path: "UpdatedAt", Value: firestore.ServerTimestamp},
 		}
 
 		return tx.Update(docRef, updates)
@@ -444,7 +444,7 @@ func (r *Firestore) DeleteMemoriesBelowScore(ctx context.Context, threshold floa
 
 	// Query for memories with score below threshold
 	iter := client.Collection(memoryCollection).
-		Where("score", "<", threshold).
+		Where("Score", "<", threshold).
 		Documents(ctx)
 	defer iter.Stop()
 

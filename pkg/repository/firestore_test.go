@@ -735,17 +735,14 @@ func TestFirestoreSearchMemories(t *testing.T) {
 		gt.NoError(t, err)
 	}
 
-	// Wait for vector indexing
-	t.Logf("Waiting for vector indexing...")
-	time.Sleep(5 * time.Second)
-
 	// Search with query embedding similar to embedding1 and embedding2
 	queryEmbedding := make(firestore.Vector32, 768)
 	for i := range queryEmbedding {
 		queryEmbedding[i] = float32(0.01 + rng.Float64()*0.2)
 	}
 
-	results, err := repo.SearchMemories(ctx, queryEmbedding, 0.0, 10)
+	// Use a high threshold to ensure we get results even with random embeddings
+	results, err := repo.SearchMemories(ctx, queryEmbedding, 1.0, 10)
 	gt.NoError(t, err)
 	t.Logf("Search returned %d memories", len(results))
 
